@@ -15,6 +15,7 @@ import humanize
 
 from runai_model_streamer.file_streamer.slot_pool import Slot, SlotPool
 from runai_model_streamer.libstreamer.libstreamer import runai_probe_direct_block_size
+from runai_model_streamer.s3_utils.s3_utils import display_path
 
 import logging
 
@@ -102,7 +103,7 @@ class FileChunks:
 
     def __repr__(self) -> str:
         """Provides a clear string representation for the object."""
-        return (f"FileChunks(id='{self.id}', path='{self.path}', "
+        return (f"FileChunks(id='{self.id}', path='{display_path(self.path)}', "
                 f"num_ranges={len(self.sizes)}, total_size={self.total_size()})")
 
 class FilesRequest:
@@ -303,7 +304,7 @@ class FilesRequestsIteratorWithBuffer:
         logger.debug(
             f"[RunAI Streamer] {slots.label} ring: {num_buffers} x {humanize.naturalsize(buffer_size, binary=True)} "
             f"= {humanize.naturalsize(buffer_size * num_buffers, binary=True)} for files: "
-            f"{[file_chunks.path for file_chunks in files_chunks]}"
+            f"{[display_path(file_chunks.path) for file_chunks in files_chunks]}"
         )
         self._slot_memory = slots
         # Pads make a destination congruent with its file offset so a direct read can land on it, so

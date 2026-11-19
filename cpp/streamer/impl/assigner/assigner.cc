@@ -120,7 +120,7 @@ size_t Assigner::coalesce(const std::vector<FileRanges> & request)
 
         if (!ordered)
         {
-            LOG(DEBUG) << "Ranges of " << request[file_index].path << " are not ordered by ascending"
+            LOG(DEBUG) << "Ranges of " << common::s3::display_path(request[file_index].path) << " are not ordered by ascending"
                        << " offset; coalescing is limited to ranges adjacent in the order given";
         }
     }

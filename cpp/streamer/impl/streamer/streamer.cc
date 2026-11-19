@@ -108,7 +108,7 @@ Streamer::~Streamer()
 
 common::ResponseCode Streamer::sync_read(const std::string & path, size_t file_offset, size_t bytesize, void * dst)
 {
-    LOG(SPAM) << "Requested to read " << bytesize << " bytes from " << path << " offset " << file_offset;
+    LOG(SPAM) << "Requested to read " << bytesize << " bytes from " << common::s3::display_path(path) << " offset " << file_offset;
 
     auto r = async_read(path, file_offset, bytesize, dst, 1, &bytesize);
     if (r != common::ResponseCode::Success)
@@ -365,7 +365,7 @@ common::ResponseCode Streamer::async_request(
         }
 
         LOG(DEBUG) << "Submission " << submission_id << " creating batches for file index " << transfer.file_index
-                   << " path: " << path << " offset " << transfer.offset << " size " << transfer.size
+                   << " path: " << common::s3::display_path(path) << " offset " << transfer.offset << " size " << transfer.size
                    << " ranges " << transfer.range_sizes.size() << " from index " << transfer.first_range_index;
 
         Batches batches(submission_id, transfer.file_index, transfer.tasks, _config, _responder, path, params,
@@ -539,14 +539,14 @@ void Streamer::verify_requests(std::vector<FileRanges> & request)
 {
     for (const auto & file : request)
     {
-        LOG(SPAM) << "Requested to read asynchronously " << file.ranges.size() << " ranges from " << file.path;
+        LOG(SPAM) << "Requested to read asynchronously " << file.ranges.size() << " ranges from " << common::s3::display_path(file.path);
 
         for (const auto & range : file.ranges)
         {
             // a zero-sized range writes nothing, so a null destination is harmless there
             if (range.size > 0 && range.dst == nullptr)
             {
-                LOG(ERROR) << "Destination buffer is null for " << file.path << " offset " << range.offset;
+                LOG(ERROR) << "Destination buffer is null for " << common::s3::display_path(file.path) << " offset " << range.offset;
                 throw common::Exception(common::ResponseCode::InvalidParameterError);
             }
         }
@@ -625,6 +625,7 @@ common::ResponseCode Streamer::lock_object_plugin(const std::vector<FileRanges> 
         }
 
         const auto plugin = uri->is_gcs()   ? BackendPools::Plugin::GCS
+                          : uri->is_http()  ? BackendPools::Plugin::HTTP
                           : uri->is_azure() ? BackendPools::Plugin::Azure
                           :                   BackendPools::Plugin::S3;
 
@@ -673,7 +674,7 @@ common::s3::S3ClientWrapper::Params Streamer::handle_s3(unsigned file_index, con
     {
         // streaming-only setup (fd limit + stop), once. If the fd-limit raise throws
         // (InsufficientFdLimit) the flag stays unset, so a later submission retries.
-        std::call_once(_s3_stream_init_flag, [this]()
+        std::call_once(_s3_stream_init_flag, [this, &uri]()
         {
             // adjust fd limit acording to concurrency
             auto fd_limit = utils::get_cur_file_descriptors();
@@ -689,7 +690,7 @@ common::s3::S3ClientWrapper::Params Streamer::handle_s3(unsigned file_index, con
                 LOG(INFO) << "Increasing fd soft limit to " << desired_fd_limit << " for concurrency level " << _config->s3_concurrency;
                 _fd_limit = std::make_unique<utils::FdLimitSetter>(desired_fd_limit);
             }
-            _s3_stop = std::make_unique<S3Stop>();
+            _s3_stop = std::make_unique<S3Stop>(common::s3::S3ClientWrapper::BackendHandle::get_libstreamers_plugin_type(uri).id());
         });
 
         // S3Cleanup: shared by list_files and streaming, created once

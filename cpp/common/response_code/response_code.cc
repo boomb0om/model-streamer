@@ -47,7 +47,7 @@ constexpr std::array<const char *, static_cast<size_t>(ResponseCode::__Max)> __m
     "Azure Blob not supported",
     "Object storage returned an unexpected number of bytes for the requested range (truncated or over-length response)",
     "Timed out waiting for a response",
-    "Streamer is locked to a single object-storage backend (S3/GCS/Azure); mixing object-storage backends in one streamer or submission is not supported",
+    "Streamer is locked to a single object-storage backend (S3/GCS/Azure/HTTP); mixing object-storage backends in one streamer or submission is not supported",
     "Credentials were already set to a different value; create a new streamer to use different credentials",
     "Retryable object storage file access error",
     "The filesystem read strategy was already set to a different value; set RUNAI_STREAMER_FS_STRATEGY, or call runai_file_streamer_set_fs_strategy, once before the first request",
@@ -59,6 +59,9 @@ constexpr std::array<const char *, static_cast<size_t>(ResponseCode::__Max)> __m
     "An allocation on the device path was refused - device memory, or host memory to be pinned; ask for less, or release what is already held",
     "The transfer to the device failed; these ranges were not written and the destination is unchanged",
     "The device driver failed; the driver and the installed libraries do not agree, or the context is gone",
+    "HTTP backend unavailable. Install runai-model-streamer[http] or provide libstreamerhttp.so",
+    "HTTP directory listing is unsupported. Supply explicit file URLs",
+    "HTTP server did not honor the requested byte range (expected 206 and matching Content-Range)",
 };
 
 // The published numbers ARE the contract: a compiled caller holds them, and Python hardcodes four of
@@ -73,6 +76,7 @@ static_assert(RUNAI_FILE_STREAMER_RESPONSE_FILE_ACCESS_ERROR == 2, "published re
 static_assert(RUNAI_FILE_STREAMER_RESPONSE_TIMED_OUT == 16, "published response code changed");
 static_assert(RUNAI_FILE_STREAMER_RESPONSE_UNSUPPORTED_DEVICE_TYPE == 23, "published response code changed");
 static_assert(RUNAI_FILE_STREAMER_RESPONSE_DEVICE_DRIVER_ERROR == 28, "published response code changed");
+static_assert(RUNAI_FILE_STREAMER_RESPONSE_HTTP_INVALID_RANGE_RESPONSE == 31, "published response code changed");
 
 // A short list is NOT a compile error on its own: std::array value-initializes the rest to nullptr,
 // and description() would hand that to a caller who builds a std::string from it.
