@@ -1,5 +1,5 @@
 THIRD-PARTY NOTICES
-C/C++ SDK archive: libstreamer.so, libstreamers3.so, libstreamergcs.so, libstreamerazure.so
+C/C++ SDK archive: libstreamer.so, libstreamers3.so, libstreamergcs.so, libstreamerazure.so, libstreamerhttp.so
 
 This file lists the third-party software that is compiled into the native
 libraries named above, with the copyright notice and license text each one
@@ -59,7 +59,7 @@ Project:   https://gcc.gnu.org/
 License:   GPL-3.0-or-later WITH GCC-exception-3.1
 Copyright: Copyright (C) Free Software Foundation, Inc.
 Linkage:   static
-Used by:   libstreamer, libstreamerazure, libstreamergcs, libstreamers3
+Used by:   libstreamer, libstreamerazure, libstreamergcs, libstreamerhttp, libstreamers3
 Note:      libstdc++.a is linked statically into every library. libgcc.a is linked statically into libstreamergcs on x86_64 and aarch64, and into the other libraries on aarch64. The GCC Runtime Library Exception permits distribution of the resulting binaries under other terms.
 
 --- COPYING3 ---
@@ -820,7 +820,7 @@ Project:   https://www.gnu.org/software/libc/
 License:   LGPL-2.1-or-later
 Copyright: Copyright (C) Free Software Foundation, Inc.
 Linkage:   static
-Used by:   libstreamer, libstreamerazure, libstreamergcs, libstreamers3
+Used by:   libstreamer, libstreamerazure, libstreamergcs, libstreamerhttp, libstreamers3
 Note:      Small glibc start-up/compatibility stubs linked statically on x86_64 only; all other glibc use is through the dynamic system libc.so.6 and is not distributed.
 
 --- COPYING.LIB ---
@@ -2992,7 +2992,7 @@ Project:   https://www.openssl.org/
 License:   Apache-2.0
 Copyright: Copyright (c) 1998-2025 The OpenSSL Project Authors. Copyright (c) 1995-1998 Eric A. Young, Tim J. Hudson. All rights reserved.
 Linkage:   static
-Used by:   libstreamerazure, libstreamers3
+Used by:   libstreamerazure, libstreamerhttp, libstreamers3
 
 --- LICENSE.txt ---
 
@@ -3181,7 +3181,7 @@ Project:   https://curl.se/
 License:   curl
 Copyright: Copyright (c) 1996 - 2025, Daniel Stenberg, <daniel@haxx.se>, and many contributors.
 Linkage:   static
-Used by:   libstreamerazure, libstreamers3
+Used by:   libstreamerazure, libstreamerhttp, libstreamers3
 
 --- COPYING ---
 COPYRIGHT AND PERMISSION NOTICE
@@ -3215,7 +3215,7 @@ Project:   https://zlib.net/
 License:   Zlib
 Copyright: Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler
 Linkage:   static
-Used by:   libstreamerazure, libstreamers3
+Used by:   libstreamerazure, libstreamerhttp, libstreamers3
 Note:      Linked into libstreamers3 on both architectures and into libstreamerazure on x86_64 only (the aarch64 azure build does not pull zlib).
 
 --- LICENSE ---

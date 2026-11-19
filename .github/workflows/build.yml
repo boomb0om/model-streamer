@@ -8,7 +8,7 @@ on:
         type: string
         required: true
       component:
-        description: Component to build (streamer, s3, gcs, or azure).
+        description: Component to build (streamer, s3, gcs, azure, or http).
         type: string
         required: true
       package_version:
