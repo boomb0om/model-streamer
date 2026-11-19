@@ -80,8 +80,14 @@ ci-build-cpp:
 ci-build-python:
 	$(MAKE) -C py/$(CI_PACKAGE_DIR) build ARCH=$(ARCH)
 
+# CI starts in a fresh image. Resolve the HTTP extra from this run's wheels before the
+# integration suite reads a tensor, so a missing or mismatched plugin fails on each architecture.
 ci-install:
-	$(MAKE) -C py install
+	$(MAKE) -C py/runai_model_streamer install_dev_dep
+	$(MAKE) -C py/runai_model_streamer_http install-extra
+	$(MAKE) -C py/runai_model_streamer_s3 install
+	$(MAKE) -C py/runai_model_streamer_gcs install
+	$(MAKE) -C py/runai_model_streamer_azure install
 
 ci-test-cpp:
 	$(MAKE) -C cpp test_$(COMPONENT) ARCH=$(ARCH)

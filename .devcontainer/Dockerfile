@@ -83,13 +83,13 @@ RUN bash /tmp/install-cuda-headers.sh "$TARGETARCH"
 
 # Build all shared SDK prerequisites before the cloud SDKs. Renovate keeps each annotated version
 # current; the script reads the versions from these ARGs.
-# attribution: shipped module=py/runai_model_streamer_s3,py/runai_model_streamer_azure,cpp
+# attribution: shipped module=py/runai_model_streamer_s3,py/runai_model_streamer_azure,py/runai_model_streamer_http,cpp
 # renovate: datasource=github-tags depName=openssl/openssl extractVersion=^openssl-(?<version>\d+\.\d+\.\d+)$
 ARG OPENSSL_VERSION=3.5.0
-# attribution: shipped module=py/runai_model_streamer_s3,py/runai_model_streamer_azure,cpp
+# attribution: shipped module=py/runai_model_streamer_s3,py/runai_model_streamer_azure,py/runai_model_streamer_http,cpp
 # renovate: datasource=github-releases depName=curl/curl versioning=regex:^(?<major>\d+)_(?<minor>\d+)_(?<patch>\d+)$ extractVersion=^curl-(?<version>\d+_\d+_\d+)$
 ARG CURL_VERSION=8_13_0
-# attribution: shipped module=py/runai_model_streamer_s3,py/runai_model_streamer_azure,cpp
+# attribution: shipped module=py/runai_model_streamer_s3,py/runai_model_streamer_azure,py/runai_model_streamer_http,cpp
 # renovate: datasource=github-releases depName=madler/zlib extractVersion=^v(?<version>.*)$
 ARG ZLIB_VERSION=1.3.1
 # attribution: shipped module=py/runai_model_streamer_azure,cpp

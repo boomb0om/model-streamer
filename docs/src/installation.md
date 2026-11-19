@@ -4,7 +4,7 @@ Model Streamer is a Python package available for installation in PyPi. Installin
 
 ### Setup
 
-The Run:ai Streamer comes with precompiled C++ code compatible to run on any Linux machine. Installing the streamer with the pip command is supported for x86_64 processors.
+The Run:ai Streamer comes with precompiled C++ code compatible to run on any Linux machine. Installing the streamer with the pip command is supported on Linux x86_64 and aarch64.
 
 ### Installation
 
@@ -35,6 +35,16 @@ pip install 'runai-model-streamer[azure]'
 ```
 
 > **Warning:** Make sure you install the Azure dependency in the same version of your runai-model-streamer by running `pip install 'runai-model-streamer[azure]==0.3.1'`. 
+
+### HTTP and HTTPS
+
+To stream a safetensors file over HTTP or HTTPS, install the matching native plugin with the HTTP extra.
+
+```bash
+pip install 'runai-model-streamer[http]'
+```
+
+The server must support byte-range GET requests. See [Streaming over HTTP and HTTPS](usage.md#streaming-over-http-and-https) for a selected-tensor example and authentication limits.
 
 ### Matching versions
 

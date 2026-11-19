@@ -41,7 +41,7 @@ DEVICE_OBJECT := device-fixture.bin
 # copy the plugin out and name its directory.
 S3_PLUGIN_DIR ?= ../cpp/bazel-bin/s3
 
-.PHONY: gcs s3 azure fuzzing all s3_device require_device
+.PHONY: gcs s3 azure http fuzzing all s3_device require_device
 
 s3:
 	@set -e; \
@@ -124,7 +124,10 @@ fuzzing:
 		${FS_ENV} pytest fuzzing/ || exit $$?; \
 	done
 
-all: fuzzing s3 gcs azure
+http:
+	python3 -m pytest http/
+
+all: fuzzing s3 gcs azure http
 
 # --- object storage to a device, byte-verified ------------------------------------------------------
 #
