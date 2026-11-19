@@ -380,7 +380,7 @@ TEST(BackendPools, ObjectPluginLockedToOne)
 // Every plugin builds one worker per unit of concurrency, each owning its own client.
 TEST(BackendPools, ObjectStoragePoolRunsAWorkerPerUnit)
 {
-    for (const auto plugin : { BackendPools::Plugin::S3, BackendPools::Plugin::GCS, BackendPools::Plugin::Azure })
+    for (const auto plugin : { BackendPools::Plugin::S3, BackendPools::Plugin::GCS, BackendPools::Plugin::Azure, BackendPools::Plugin::HTTP })
     {
         std::atomic<unsigned> built{0};
         auto counting = [&built]() -> std::unique_ptr<utils::Worker<Workload>>

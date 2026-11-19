@@ -162,6 +162,8 @@ common::ResponseCode range_get(const std::string & url, common::backend_api::Obj
                << ", wrote " << written << " of " << range.length << " bytes)";
     if (transfer.valid_range && (transfer.oversized || result == CURLE_PARTIAL_FILE || result == CURLE_OK))
         return ResponseCode::FileTruncatedError;
+    if (!stopped && (transfer.status == 200 || (transfer.status == 206 && result == CURLE_WRITE_ERROR)))
+        return ResponseCode::HTTPInvalidRangeResponse;
     return ResponseCode::FileAccessError;
 }
 

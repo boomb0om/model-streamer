@@ -1091,13 +1091,16 @@ TEST(AsyncRequest, MixedObjectPluginsRejected)
     std::vector<unsigned char> dst0(size);
     std::vector<unsigned char> dst1(size);
 
-    // a single submission that mixes two object-storage plugins (s3 + gcs) is rejected up front,
+    // A single submission that mixes two object-storage plugins is rejected up front,
     // before any dispatch or plugin load
     std::vector<FileRanges> request;
     request.push_back(FileRanges{ "s3://bucket/a.txt", { ReadRange{ 0, static_cast<size_t>(size), dst0.data() } } });
-    request.push_back(FileRanges{ "gs://bucket/b.txt", { ReadRange{ 0, static_cast<size_t>(size), dst1.data() } } });
-
-    EXPECT_EQ(streamer.async_request(request, common::Device::host()), common::ResponseCode::UnsupportedBackendMix);
+    for (auto other : {"gs://bucket/b.txt", "https://host/b", "http://host/b"})
+    {
+        request.resize(1);
+        request.push_back(FileRanges{other, { ReadRange{ 0, static_cast<size_t>(size), dst1.data() } }});
+        EXPECT_EQ(streamer.async_request(request, common::Device::host()), common::ResponseCode::UnsupportedBackendMix);
+    }
 }
 
 // A submission must pick ONE backend kind. The streamer serves both across submissions (see

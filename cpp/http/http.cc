@@ -101,8 +101,7 @@ ResponseCode obj_wait_for_completions(api::ObjectClientHandle_t handle, api::Obj
 
 ResponseCode obj_list_files(api::ObjectClientHandle_t, const char *, int, api::ObjectFileEntry_t **, unsigned *)
 {
-    LOG(ERROR) << "HTTP directory listing is unsupported. Supply explicit file URLs.";
-    return ResponseCode::InvalidParameterError;
+    return ResponseCode::HTTPListingNotSupported;
 }
 
 void obj_free_file_list(api::ObjectFileEntry_t *, unsigned)

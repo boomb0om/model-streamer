@@ -37,6 +37,7 @@ from runai_model_streamer.s3_utils.s3_utils import (
     is_s3_path,
     is_gs_path,
     is_azure_path,
+    is_http_path,
     get_s3_credentials_module,
 )
 
@@ -147,6 +148,8 @@ def homogeneous_paths(paths: List[str]) -> bool:
             return is_gs_path
         elif is_azure_path(path):
             return is_azure_path
+        elif is_http_path(path):
+            return is_http_path
         else:
             return None
 
@@ -562,7 +565,7 @@ class FileStreamer:
             # Asked AFTER handle_object_store() above, so these paths are the ones that will be read.
             paths = [request.path for request in file_stream_requests]
             object_storage = bool(paths) and (is_s3_path(paths[0]) or is_gs_path(paths[0])
-                                              or is_azure_path(paths[0]))
+                                              or is_azure_path(paths[0]) or is_http_path(paths[0]))
 
             direct_block = (DIRECT_IO_BLOCK if object_storage or not paths
                             else runai_probe_direct_block_size(self.streamer, paths))
