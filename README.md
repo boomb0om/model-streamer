@@ -38,6 +38,8 @@ transfers tensors to the selected CUDA or XPU device, as shown below, and uses t
   Azure Blob Storage. Object storage requires the matching storage package; see
   [installation](docs/src/installation.md) for S3 and Azure, and
   [GCS setup](docs/src/usage.md#streaming-from-google-cloud-storage) for Google Cloud Storage.
+- Read selected tensor ranges from public or pre-signed HTTP(S) file URLs with the
+  [HTTP plugin](docs/src/usage.md#streaming-over-http-and-https).
 - Select tensors by name and use distributed streaming for multi-process loading;
   see [usage and requirements](docs/src/usage.md).
 - Control read concurrency and memory limits with the documented
@@ -53,6 +55,7 @@ below, the application copies each tensor to the selected CUDA or XPU device whi
 | --- | --- |
 | [`cpp/streamer`](cpp/streamer) | C++ streaming engine and concurrent reads |
 | [`cpp/s3`](cpp/s3), [`cpp/gcs`](cpp/gcs), [`cpp/azure`](cpp/azure) | Object storage backend clients |
+| [`cpp/http`](cpp/http) | HTTP and HTTPS byte-range backend |
 | [`cpp/streamer/api/streamer`](cpp/streamer/api/streamer) | C API used by the Python wrapper through `ctypes` |
 | [`py/runai_model_streamer`](py/runai_model_streamer) | Python SDK and SafeTensors-to-PyTorch interface |
 
@@ -190,7 +193,7 @@ git push origin refs/tags/0.17.2
 
 The tag push triggers **RunAI Model Streamer Library - Release**. It validates
 the tag, selects `devcontainer:release-0.17`, and resolves that image to a digest
-shared by all jobs. CI builds all four packages for x86_64 and aarch64 and runs
+shared by all jobs. CI builds all five packages for x86_64 and aarch64 and runs
 the existing x86_64 C++, Python, integration, and filesystem-strategy tests.
 There is no fallback to master's devcontainer. Ensure the branch image matches
 the tagged source's build requirements, especially when tagging an older commit.
@@ -199,15 +202,15 @@ After every build and test succeeds, CI calls the reusable `assemble-bundle.yml`
 workflow, also used for PR bundles. It collects one wheel for each package and
 architecture at the tagged version, plus the C++ component artifacts from the
 same run. It packages one C++ SDK per architecture, checking the ELF architecture
-and matching public headers and licenses across all components. The eight wheels,
+and matching public headers and licenses across all components. The ten wheels,
 two SDK archives, and combined `SHA256SUMS` are saved in a workflow artifact
 retained for 30 days. Review the version, commit, image digest, and checksums in
 the job summaries, then approve the **pypi** deployment in the Actions run.
 Rejection prevents publication.
 
-After approval, CI checks that the saved bundle contains all ten assets and that
+After approval, CI checks that the saved bundle contains all twelve assets and that
 every checksum matches. It publishes those exact wheels to the existing PyPI
-projects and attaches the same eight wheels, both C++ SDK archives, and
+projects and attaches the same ten wheels, both C++ SDK archives, and
 `SHA256SUMS` to the GitHub release. Publication does not rebuild anything.
 The existing publishing actions handle the uploads:
 `pypa/gh-action-pypi-publish` for PyPI and `softprops/action-gh-release` for GitHub.
@@ -232,6 +235,7 @@ lib/libstreamer.so
 lib/libstreamers3.so
 lib/libstreamergcs.so
 lib/libstreamerazure.so
+lib/libstreamerhttp.so
 LICENSE
 THIRD_PARTY_NOTICES.txt    Licenses of the third-party code linked into the libraries
 ```
@@ -285,7 +289,7 @@ Model Streamer is licensed under the [Apache License 2.0](LICENSE).
   license texts live in [`third_party_notices/`](third_party_notices/README.md):
   - `third_party_notices/licenses/<component>/` holds the verbatim license and NOTICE files
     of each third-party component (Apache-2.0, MIT, BSD, zlib, curl, LGPL-2.1 and others).
-  - `libstreamer.txt`, `libstreamers3.txt`, `libstreamergcs.txt` and `libstreamerazure.txt`
+  - `libstreamer.txt`, `libstreamers3.txt`, `libstreamergcs.txt`, `libstreamerazure.txt` and `libstreamerhttp.txt`
     are the consolidated notices for each wheel. `sdk.txt` is the notice for the C/C++ SDK archive.
 
 For source delivery and replacing the statically linked I/O libraries, see

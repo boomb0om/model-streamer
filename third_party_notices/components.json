@@ -3,7 +3,8 @@
   "libstreamer": "core wheel: runai-model-streamer",
   "libstreamers3": "wheel: runai-model-streamer-s3",
   "libstreamergcs": "wheel: runai-model-streamer-gcs",
-  "libstreamerazure": "wheel: runai-model-streamer-azure"
+  "libstreamerazure": "wheel: runai-model-streamer-azure",
+  "libstreamerhttp": "wheel: runai-model-streamer-http"
  },
  "components": [
   {
@@ -18,7 +19,8 @@
     "libstreamer",
     "libstreamers3",
     "libstreamergcs",
-    "libstreamerazure"
+    "libstreamerazure",
+    "libstreamerhttp"
    ],
    "files": [
     {
@@ -44,7 +46,8 @@
     "libstreamer",
     "libstreamers3",
     "libstreamergcs",
-    "libstreamerazure"
+    "libstreamerazure",
+    "libstreamerhttp"
    ],
    "files": [
     {
@@ -427,7 +430,8 @@
    "linkage": "static",
    "libs": [
     "libstreamers3",
-    "libstreamerazure"
+    "libstreamerazure",
+    "libstreamerhttp"
    ],
    "files": [
     {
@@ -446,7 +450,8 @@
    "linkage": "static",
    "libs": [
     "libstreamers3",
-    "libstreamerazure"
+    "libstreamerazure",
+    "libstreamerhttp"
    ],
    "files": [
     {
@@ -465,7 +470,8 @@
    "linkage": "static",
    "libs": [
     "libstreamers3",
-    "libstreamerazure"
+    "libstreamerazure",
+    "libstreamerhttp"
    ],
    "files": [
     {

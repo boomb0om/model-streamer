@@ -42,6 +42,12 @@ new_local_repository(
 )
 
 new_local_repository(
+    name = "curl",
+    build_file = "//third_party:curl.BUILD",
+    path = "/opt",
+)
+
+new_local_repository(
     name = "azure",
     build_file = "//third_party:azure.BUILD",
     path = "/opt",

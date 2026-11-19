@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <mutex>
@@ -32,7 +34,8 @@ static const std::string obj_plugin_azure_name = "azure";
 enum struct PluginID {
     GCS,
     S3,
-    AZURE
+    AZURE,
+    HTTP
 };
 
 /**
@@ -51,6 +54,7 @@ public:
     static const ObjectPluginType ObjStorageGCS;
     static const ObjectPluginType ObjStorageS3;
     static const ObjectPluginType ObjStorageAzure;
+    static const ObjectPluginType ObjStorageHTTP;
 
     std::string name() const { return _name; }
     std::string so_name() const { return _so_name; }
@@ -160,7 +164,7 @@ struct S3ClientWrapper
 
       // stop - stops the responder of each S3 client, in order to notify callers which sent a request and are waiting for a response
       //        required for stopping the threadpool workers, which are bloking on the client responder
-      static void stop();
+      static void stop(std::optional<PluginID> plugin = std::nullopt);
 
       // destroy S3 all clients
       static void shutdown();
@@ -170,15 +174,8 @@ struct S3ClientWrapper
 
  private:
       void * create_client(const Params & params);
-      enum class ManageBackendHandleOp
-      {
-         CREATE,
-         DESTROY,
-      };
-      static std::shared_ptr<BackendHandle> manage_backend_handle(const Params & params, ManageBackendHandleOp op);
-      static common::backend_api::ObjectShutdownPolicy_t get_backend_shutdown_policy(std::shared_ptr<BackendHandle> handle);
-
- private:
+      static std::shared_ptr<BackendHandle> open_backend(const Params & params);
+      static std::map<PluginID, std::shared_ptr<BackendHandle>> & backends();
       static std::mutex _backend_handle_mutex;
       std::shared_ptr<BackendHandle> _backend_handle;
 

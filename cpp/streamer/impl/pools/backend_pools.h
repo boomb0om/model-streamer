@@ -37,8 +37,7 @@ namespace runai::llm::streamer::impl
 //   ObjectStorage    `s3_concurrency` threads, each worker owning a plugin client and its own
 //                    in-flight window.
 //
-// Object storage is served by a single plugin (the backend handle is a process-wide static), so the one
-// ObjectStorage pool serves one plugin. That small lock lives here too (an optional + leaf mutex).
+// Each ObjectStorage worker keeps its first plugin client, so the pool locks to one plugin.
 //
 // Keep this object in the streamer member slot the single ThreadPool used to occupy, so object-storage
 // workers still join between S3Stop and S3Cleanup on teardown.
@@ -52,7 +51,7 @@ class BackendPools
     // Strategy is NOT this. It stays the configured preference and the per-file result;
     // io_uring_* and libaio_* select FileSystemAsync, sync_buffered selects FileSystem.
     enum class Pool { FileSystem, FileSystemAsync, ObjectStorage };
-    enum class Plugin { S3, GCS, Azure };
+    enum class Plugin { S3, GCS, Azure, HTTP };
     using Handler = utils::ThreadPool<Workload>::Handler;
     using WorkerFactory = utils::ThreadPool<Workload>::WorkerFactory;
 
@@ -109,8 +108,7 @@ class BackendPools
 
     // Lock object storage to a single plugin and create the ObjectStorage pool (once). The first
     // object-storage submission records the plugin and builds the pool; a later submission with a different
-    // plugin returns UnsupportedBackendMix (and builds nothing). The lock enforces the single-plugin
-    // constraint (the s3_wrapper backend handle is a process-wide static). Credentials are streamer-scoped
+    // plugin returns UnsupportedBackendMix (and builds nothing). Credentials are streamer-scoped
     // (set once via runai_file_streamer_set_credentials), not per submission, so nothing credential-related is locked here.
     // The ObjectStorageWorkers are plugin-agnostic (they dispatch by URI). Creating the pool here - always
     // called before dispatch - keeps it off the per-workload push path. Thread-safe.

@@ -39,7 +39,7 @@ Batch::Batch(SubmissionId submission_id, unsigned workload_index, unsigned file_
     responder(responder),
     config(config)
 {
-    LOG(DEBUG) << "Batch " << path << " range " << range << " ; " << this->tasks.size() << " tasks in "
+    LOG(DEBUG) << "Batch " << common::s3::display_path(path) << " range " << range << " ; " << this->tasks.size() << " tasks in "
                << chunks.size() << " chunks to " << device;
 }
 
@@ -55,7 +55,7 @@ size_t Batch::end_offset() const
 
 void Batch::execute(std::atomic<bool> & stopped, const DeviceStaging * staging)
 {
-    LOG(DEBUG) << "Start reading from file " << path;
+    LOG(DEBUG) << "Start reading from file " << common::s3::display_path(path);
 
     auto response_code = common::ResponseCode::Success;
     try
@@ -103,11 +103,11 @@ void Batch::handle_error(common::ResponseCode response_code)
     {
         if (response_code != common::ResponseCode::FinishedError)
         {
-            LOG(ERROR) << "Failed to read from file " << path << " ; error: " << response_code;
+            LOG(ERROR) << "Failed to read from file " << common::s3::display_path(path) << " ; error: " << response_code;
         }
         else
         {
-            LOG(SPAM) << "Finished reading from file " << path;
+            LOG(SPAM) << "Finished reading from file " << common::s3::display_path(path);
         }
 
         // Note:
@@ -173,7 +173,7 @@ void Batch::read(const Config & config, std::atomic<bool> & stopped)
         finished_until(range.end, common::ResponseCode::Success);
     }
 
-    LOG(DEBUG) << "Finished reading " << i << "/" << num_chunks << " chunks from file " << path << (stopped ? " - terminated" : " successfully");
+    LOG(DEBUG) << "Finished reading " << i << "/" << num_chunks << " chunks from file " << common::s3::display_path(path) << (stopped ? " - terminated" : " successfully");
 
     if (stopped)
     {
@@ -302,7 +302,7 @@ void Batch::read_to_device(const DeviceStaging & staging, std::atomic<bool> & st
         finished_until(range.end, common::ResponseCode::Success);
     }
 
-    LOG(DEBUG) << "Finished " << submitted << " blocks to " << device << " from file " << path
+    LOG(DEBUG) << "Finished " << submitted << " blocks to " << device << " from file " << common::s3::display_path(path)
                << (stopped ? " - terminated" : " successfully");
 
     if (stopped)
@@ -372,7 +372,7 @@ bool Batch::is_object_storage() const
 
 std::ostream & operator<<(std::ostream & os, const Batch & r)
 {
-    return os << r.path << " range " << r.range << " ; " << r.tasks.size() << " tasks";
+    return os << common::s3::display_path(r.path) << " range " << r.range << " ; " << r.tasks.size() << " tasks";
 }
 
 Batch::Range::Range(size_t start_offset, size_t end_offset) :

@@ -10,8 +10,9 @@ build:
 	$(MAKE) build_s3
 	$(MAKE) build_gcs
 	$(MAKE) build_azure
+	$(MAKE) build_http
 
-.PHONY: build_streamer build_s3 build_gcs build_azure
+.PHONY: build_streamer build_s3 build_gcs build_azure build_http
 
 # Shared by the full build above and individual CI jobs.
 build_streamer:
@@ -25,6 +26,9 @@ build_gcs:
 
 build_azure:
 	bazel build azure:libstreamerazure.so --define USE_SYSTEM_LIBS=${USE_SYSTEM_LIBS} "--config=${ARCH}"
+
+build_http:
+	bazel build http:libstreamerhttp.so --define USE_SYSTEM_LIBS=${USE_SYSTEM_LIBS} "--config=${ARCH}"
 
 # Build Azure library with Azurite testing support (enables AZURE_STORAGE_ACCOUNT_KEY)
 build_azure_test:
@@ -63,13 +67,13 @@ BAZEL_TEST_LOGGING := --test_output=errors
 test:
 	bazel test //...:all $(BAZEL_TEST_LOGGING) $(BAZEL_TEST_FLAGS)
 
-.PHONY: test_streamer test_s3 test_gcs test_azure
+.PHONY: test_streamer test_s3 test_gcs test_azure test_http
 
 # Match each component build's architecture and defines to reuse compiled outputs.
-# Core owns every target outside the three backend trees, including shared utilities.
+# Core owns every target outside the backend trees, including shared utilities.
 test_streamer:
 	bazel test "--config=${ARCH}" $(BAZEL_TEST_LOGGING) $(BAZEL_TEST_FLAGS) \
-		-- //...:all -//s3/... -//gcs/... -//azure/...
+		-- //...:all -//s3/... -//gcs/... -//azure/... -//http/...
 
 test_s3:
 	bazel test //s3/... "--config=${ARCH}" --define USE_SYSTEM_LIBS=${USE_SYSTEM_LIBS} \
@@ -77,6 +81,10 @@ test_s3:
 
 test_gcs:
 	bazel test //gcs/... "--config=${ARCH}" --define USE_SYSTEM_LIBS=${USE_SYSTEM_LIBS} \
+		$(BAZEL_TEST_LOGGING) $(BAZEL_TEST_FLAGS)
+
+test_http:
+	bazel test //http/... "--config=${ARCH}" --define USE_SYSTEM_LIBS=${USE_SYSTEM_LIBS} \
 		$(BAZEL_TEST_LOGGING) $(BAZEL_TEST_FLAGS)
 
 test_azure:

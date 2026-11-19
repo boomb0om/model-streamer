@@ -94,6 +94,10 @@ enum class ResponseCode : int
     // A dedicated code would carry this better than widening this one. See the device notes.
     DeviceDriverError        = RUNAI_FILE_STREAMER_RESPONSE_DEVICE_DRIVER_ERROR,
 
+    HTTPNotSupported         = RUNAI_FILE_STREAMER_RESPONSE_HTTP_NOT_SUPPORTED,
+    HTTPListingNotSupported  = RUNAI_FILE_STREAMER_RESPONSE_HTTP_LISTING_NOT_SUPPORTED,
+    HTTPInvalidRangeResponse = RUNAI_FILE_STREAMER_RESPONSE_HTTP_INVALID_RANGE_RESPONSE,
+
     __Max,
 };
 

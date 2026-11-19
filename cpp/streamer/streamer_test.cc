@@ -387,6 +387,19 @@ TEST_F(StreamerTest, S3_Library_Not_Found)
     runai_file_streamer_end(streamer);
 }
 
+TEST_F(StreamerTest, MissingHttpPluginNamesTheExtra)
+{
+    void * streamer;
+    ASSERT_EQ(runai_file_streamer_start(&streamer), 0);
+    char dst;
+    EXPECT_EQ(runai_request_file(streamer, "https://example.invalid/model", 0, 1, &dst), 0);
+    unsigned file_index, index;
+    auto result = next_response(streamer, &file_index, &index);
+    EXPECT_EQ(result, static_cast<int>(common::ResponseCode::HTTPNotSupported));
+    EXPECT_NE(std::string(runai_file_streamer_response_str(result)).find("[http]"), std::string::npos);
+    runai_file_streamer_end(streamer);
+}
+
 TEST_F(StreamerTest, GCS_Library_Not_Found)
 {
     auto size = utils::random::number(100, 1000);

@@ -74,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [streamer, s3, gcs, azure]
+        component: [streamer, s3, gcs, azure, http]
         arch: [x86_64, aarch64]
     uses: ./.github/workflows/build.yml
     with:

@@ -50,6 +50,7 @@ setup(
     extras_require={
         "s3": [f"runai_model_streamer_s3=={VERSION}"],
         "gcs": [f"runai_model_streamer_gcs=={VERSION}"],
+        "http": [f"runai_model_streamer_http=={VERSION}"],
         "azure": [f"runai_model_streamer_azure=={VERSION}"],
     },
     cmdclass={"bdist_wheel": bdist_wheel},

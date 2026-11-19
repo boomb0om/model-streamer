@@ -1,7 +1,7 @@
 # Third-party notices
 
 The native libraries (`libstreamer.so`, `libstreamers3.so`, `libstreamergcs.so`,
-`libstreamerazure.so`) statically link third-party code. Apache-2.0 and the other licenses
+`libstreamerazure.so`, `libstreamerhttp.so`) statically link third-party code. Apache-2.0 and the other licenses
 require us to ship each component's copyright and license text with the binaries. This directory
 holds those notices and the tooling to regenerate them.
 
@@ -14,8 +14,8 @@ holds those notices and the tooling to regenerate them.
 | `licenses/sources.json` | The URL, archive member and SHA-256 of each downloaded file. `fetch` re-downloads a file whose URL or member in `components.json` changed. `check` fails if a file is missing, was edited by hand or does not match the manifest. |
 | `generate.py` | `fetch` downloads the files, `build` writes the outputs, `check` fails if the outputs or the downloaded files are stale. |
 | `list_linked_components.py` | Reads linker maps and lists what was really linked. |
-| `libstreamer.txt`, `libstreamers3.txt`, `libstreamergcs.txt`, `libstreamerazure.txt` | Generated. One notice per native library. |
-| `sdk.txt` | Generated. The union of the four, for the C/C++ SDK archive. |
+| `libstreamer.txt`, `libstreamers3.txt`, `libstreamergcs.txt`, `libstreamerazure.txt`, `libstreamerhttp.txt` | Generated. One notice per native library. |
+| `sdk.txt` | Generated. The union of the five, for the C/C++ SDK archive. |
 
 ## Where each deliverable gets its notice
 
@@ -25,13 +25,14 @@ holds those notices and the tooling to regenerate them.
 | Wheel `runai-model-streamer-s3` | `py/runai_model_streamer_s3/LICENSE` | `.../THIRD_PARTY_NOTICES.txt` -> `libstreamers3.txt` |
 | Wheel `runai-model-streamer-gcs` | `py/runai_model_streamer_gcs/LICENSE` | `.../THIRD_PARTY_NOTICES.txt` -> `libstreamergcs.txt` |
 | Wheel `runai-model-streamer-azure` | `py/runai_model_streamer_azure/LICENSE` | `.../THIRD_PARTY_NOTICES.txt` -> `libstreamerazure.txt` |
-| C/C++ SDK archive (all four `.so`) | root `LICENSE` | `third_party_notices/sdk.txt`, packaged as `THIRD_PARTY_NOTICES.txt` at the archive root |
+| Wheel `runai-model-streamer-http` | `py/runai_model_streamer_http/LICENSE` | `.../THIRD_PARTY_NOTICES.txt` -> `libstreamerhttp.txt` |
+| C/C++ SDK archive (all five `.so`) | root `LICENSE` | `third_party_notices/sdk.txt`, packaged as `THIRD_PARTY_NOTICES.txt` at the archive root |
 
 The wheel files are symlinks, and each `setup.py` lists `THIRD_PARTY_NOTICES.txt` in
 `license_files`, so it lands in `<wheel>.dist-info/`. The release job
 (`.github/scripts/release_bundle.py create`) adds `sdk.txt` to each SDK archive as
 `THIRD_PARTY_NOTICES.txt`, and `verify` fails if an archive lacks it or the `LICENSE`.
-The two SDK archives (x86_64 and aarch64) get the same file, the union of the four libraries.
+The two SDK archives (x86_64 and aarch64) get the same file, the union of the five libraries.
 
 ## Dependency source and rebuilding
 
@@ -53,7 +54,8 @@ Run these whenever a dependency version, a build flag or the set of linked libra
    bazel build s3:libstreamers3.so --config=x86_64 --linkopt=-Wl,-Map=/tmp/libstreamers3.map
    bazel build gcs:libstreamergcs.so --config=x86_64 --linkopt=-Wl,-Map=/tmp/libstreamergcs.map
    bazel build azure:libstreamerazure.so --config=x86_64 --linkopt=-Wl,-Map=/tmp/libstreamerazure.map
-   # then repeat the four builds with --config=aarch64 and different map names
+   bazel build http:libstreamerhttp.so --config=x86_64 --linkopt=-Wl,-Map=/tmp/libstreamerhttp.map
+   # then repeat the five builds with --config=aarch64 and different map names
    python3 ../third_party_notices/list_linked_components.py /tmp/*.map
    ```
    The map lists every archive that supplied an object file. Anything linked that is not in
@@ -61,7 +63,7 @@ Run these whenever a dependency version, a build flag or the set of linked libra
    they differ slightly (see the notes in `components.json`).
 
    **Build the way CI builds.** `cpp/Makefile` passes `--define USE_SYSTEM_LIBS=${USE_SYSTEM_LIBS}`
-   to the s3, gcs and azure builds, and `cpp/third_party/*.BUILD` and `*.bzl` select static or
+   to the s3, gcs, azure and http builds, and `cpp/third_party/*.BUILD` and `*.bzl` select static or
    dynamic libraries on it. Before building the maps, check how the release workflow
    (`.github/workflows/on-release.yaml` and `build.yml`) sets it, and use the same value. At the time
    of writing CI leaves it unset, which is the default (static) branch. The setting does not change

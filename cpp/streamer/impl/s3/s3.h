@@ -24,7 +24,8 @@ struct S3Cleanup
 
 struct S3Stop
 {
-    S3Stop() = default;
+    explicit S3Stop(common::s3::PluginID plugin) : plugin(plugin) {}
+    common::s3::PluginID plugin;
 
     ~S3Stop();
 };
