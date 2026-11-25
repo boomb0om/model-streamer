@@ -159,7 +159,7 @@ TEST_F(HttpClient, TimesOutWhileWaitingForBody)
     std::atomic<bool> stopped{false};
     char buffer[3]{};
     size_t written = 0;
-    EXPECT_EQ(range_get(curl.get(), server.url, {7, 3}, buffer, written, stopped, {}, 1),
+    EXPECT_EQ(range_get(curl.get(), server.url, {7, 3}, buffer, written, stopped, 1),
               ResponseCode::RetryableFileAccessError);
     EXPECT_EQ(written, 0U);
 }
@@ -173,7 +173,7 @@ TEST_F(HttpClient, ReusesConnectionForConsecutiveRanges)
     {
         std::string buffer(3, '.');
         size_t written = 0;
-        ASSERT_EQ(range_get(curl.get(), server.url, {7, 3}, buffer.data(), written, stopped, {}, 1),
+        ASSERT_EQ(range_get(curl.get(), server.url, {7, 3}, buffer.data(), written, stopped, 1),
                   ResponseCode::Success);
         EXPECT_EQ(buffer, "abc");
         EXPECT_EQ(written, 3U);

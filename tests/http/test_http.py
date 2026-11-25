@@ -3,9 +3,7 @@
 
 import json
 import re
-import ssl
 import struct
-import subprocess
 import threading
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -33,7 +31,7 @@ def model(path: Path, selected: str, value: int) -> bytes:
 
 
 @contextmanager
-def serve(files, *, mode="ok", tls_context=None):
+def serve(files, *, mode="ok"):
     requests = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -84,13 +82,10 @@ def serve(files, *, mode="ok", tls_context=None):
             pass
 
     with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
-        if tls_context is not None:
-            server.socket = tls_context.wrap_socket(server.socket, server_side=True)
         worker = threading.Thread(target=server.serve_forever)
         worker.start()
         try:
-            scheme = "https" if tls_context is not None else "http"
-            yield f"{scheme}://127.0.0.1:{server.server_port}", requests
+            yield f"http://127.0.0.1:{server.server_port}", requests
         finally:
             server.shutdown()
             worker.join()
@@ -124,39 +119,6 @@ def test_selected_tensor_and_signed_request_target(tmp_path):
         result = read_one(base + SIGNED_PATH, "selected")
     assert result.keys() == reference.keys() == {"selected"}
     torch.testing.assert_close(result["selected"], reference["selected"], rtol=0, atol=0)
-    assert_ranges(requests, SIGNED_PATH, data)
-
-
-def test_https_custom_ca_bundle(tmp_path, monkeypatch):
-    cert = tmp_path / "cert.pem"
-    key = tmp_path / "key.pem"
-    subprocess.run(
-        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-         "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost",
-         "-addext", "basicConstraints=critical,CA:TRUE",
-         "-keyout", str(key), "-out", str(cert)],
-        check=True, capture_output=True,
-    )
-    tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    tls_context.load_cert_chain(cert, key)
-    data = model(tmp_path / "model", "x", 1)
-    ca_bundle = "RUNAI_STREAMER_HTTP_CA_BUNDLE"
-    monkeypatch.delenv(ca_bundle, raising=False)
-
-    with serve({SIGNED_PATH: data}, tls_context=tls_context) as (base, requests):
-        localhost = base.replace("127.0.0.1", "localhost") + SIGNED_PATH
-        with pytest.raises(ValueError, match="File access error"):
-            read_one(localhost, "x")
-        monkeypatch.setenv(ca_bundle, str(tmp_path / "missing.pem"))
-        with pytest.raises(ValueError, match="CA bundle file not found"):
-            read_one(localhost, "x")
-        monkeypatch.setenv(ca_bundle, str(cert))
-        with pytest.raises(ValueError, match="File access error"):
-            read_one(base + SIGNED_PATH, "x")  # The certificate only names localhost.
-        assert requests == []
-        result = read_one(localhost, "x")
-
-    torch.testing.assert_close(result["x"], torch.tensor([[1, 2]], dtype=torch.int32))
     assert_ranges(requests, SIGNED_PATH, data)
 
 
