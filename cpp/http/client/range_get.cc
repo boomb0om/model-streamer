@@ -149,7 +149,7 @@ bool retryable(CURLcode result, long status)
 
 common::ResponseCode range_get(CURL * curl, const std::string & url, common::backend_api::ObjectRange_t range,
                                char * buffer, size_t & written, const std::atomic<bool> & stopped,
-                               long stall_timeout_seconds)
+                               const std::string & ca_bundle, long stall_timeout_seconds)
 {
     using common::ResponseCode;
     if (range.length == 0) return ResponseCode::Success;
@@ -161,6 +161,7 @@ common::ResponseCode range_get(CURL * curl, const std::string & url, common::bac
 
     const auto set = [&](CURLoption option, auto value) { return curl_easy_setopt(curl, option, value) == CURLE_OK; };
     if (!set(CURLOPT_URL, url.c_str()) || !set(CURLOPT_RANGE, bounds.c_str()) ||
+        (!ca_bundle.empty() && !set(CURLOPT_CAINFO, ca_bundle.c_str())) ||
         !set(CURLOPT_PATH_AS_IS, 1L) ||
         !set(CURLOPT_PROTOCOLS, long(CURLPROTO_HTTP | CURLPROTO_HTTPS)) ||
         !set(CURLOPT_DISALLOW_USERNAME_IN_URL, 1L) || !set(CURLOPT_SUPPRESS_CONNECT_HEADERS, 1L) ||
@@ -178,6 +179,8 @@ common::ResponseCode range_get(CURL * curl, const std::string & url, common::bac
         return ResponseCode::Success;
     LOG(ERROR) << "HTTP range GET failed (status " << transfer.status << ", " << curl_easy_strerror(result)
                << ", wrote " << written << " of " << range.length << " bytes)";
+    if (!ca_bundle.empty() && result == CURLE_SSL_CACERT_BADFILE)
+        return ResponseCode::CaFileNotFound;
     if (transfer.valid_range && (transfer.oversized || result == CURLE_PARTIAL_FILE || result == CURLE_OK))
         return ResponseCode::FileTruncatedError;
     if (!stopped && (transfer.status == 200 || (transfer.status == 206 && result == CURLE_WRITE_ERROR)))

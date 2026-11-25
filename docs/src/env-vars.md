@@ -284,6 +284,15 @@ If defined, this environment variable overrides the value for the profile settin
 
 String
 
+### RUNAI_STREAMER_HTTP_CA_BUNDLE
+
+Path to a PEM bundle of trusted CA certificates for direct HTTPS URLs. Set it
+before creating the HTTP client. Certificate and hostname verification remain enabled.
+
+#### Default value
+
+The CA bundle configured by libcurl when this variable is unset or empty.
+
 ### RUNAI_STREAMER_S3_USE_VIRTUAL_ADDRESSING
 
 Controls parsing the url endpoint for reading from object store 

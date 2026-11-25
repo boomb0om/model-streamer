@@ -9,6 +9,7 @@ runai_cc_auto_library(
         "@curl",
         "//common/backend_api/object_storage",
         "//common/client_mgr",
+        "//utils/env",
         "//utils/scope_guard",
         "//utils/threadpool",
     ],

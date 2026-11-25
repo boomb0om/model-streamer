@@ -46,6 +46,8 @@ For a sharded checkpoint, pass the explicit list of direct file URLs to `stream_
 
 Use a direct public URL or supply a pre-signed GET URL with its original query string and with the `Range` header omitted from the signature. Logs and error messages can include the full URL, including the query string. libcurl verifies HTTPS certificates. Basic Auth, bearer tokens, custom request headers and redirects are unsupported.
 
+For a private CA, set [`RUNAI_STREAMER_HTTP_CA_BUNDLE`](env-vars.md#runai_streamer_http_ca_bundle) to the path of its PEM bundle.
+
 #### Streaming from multiple files
 
 To stream tensors from multiple files in parallel use the `streamer.stream_files()` API:
