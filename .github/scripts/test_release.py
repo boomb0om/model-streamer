@@ -84,7 +84,9 @@ class ReleaseBundleTests(unittest.TestCase):
                 struct.pack_into("<HH", elf, 16, 3, machine)
                 path = directory / "lib" / library
                 path.write_bytes(elf + f"{component}-{arch}".encode())
-                self.libraries.append(path)
+                # Keep the original fixture indexes used by the rejection tests.
+                if component != "http":
+                    self.libraries.append(path)
         self.sources = self.root / "source-archive"
         self.source_path = sources_archive(self.sources, VERSION)
 
@@ -255,7 +257,7 @@ class ReleaseBundleTests(unittest.TestCase):
 
     def test_missing_library_rejected(self):
         """Reject packaging when a component artifact lacks its expected shared library."""
-        next(self.cpp.glob("ci-cpp-http-*/lib/libstreamerhttp.so")).unlink()
+        self.libraries[0].rename(self.libraries[0].with_suffix(".unavailable"))
         self.assertNotEqual(self.collect().returncode, 0)
 
     def test_missing_header_rejected(self):
@@ -382,8 +384,7 @@ class ReleaseBundleTests(unittest.TestCase):
                 self.assertIn("source directory", result.stderr)
 
     def test_wrong_architecture_rejected(self):
-        source, target = sorted(self.cpp.glob("ci-cpp-http-*/lib/libstreamerhttp.so"))
-        target.write_bytes(source.read_bytes())
+        self.libraries[0].write_bytes(self.libraries[4].read_bytes())
         self.assertNotEqual(self.collect().returncode, 0)
 
     def test_non_elf_library_rejected(self):
