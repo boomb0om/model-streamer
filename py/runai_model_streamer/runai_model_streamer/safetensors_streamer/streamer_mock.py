@@ -18,7 +18,6 @@ from runai_model_streamer import (
     list_safetensors as original_list_safetensors,
 )
 from runai_model_streamer.s3_utils.s3_utils import (
-    display_path,
     is_s3_path,
     is_gs_path,
     S3Credentials,
@@ -95,7 +94,7 @@ class StreamerPatcher:
 
     # === Shim for list_safetensors ===
     def shim_list_safetensors(self, path: str, s3_credentials: Optional[S3Credentials] = None) -> List[str]:
-        logger.debug(f"[RunAI Streamer][SHIM] list_safetensors is called with path: {display_path(path)}")
+        logger.debug(f"[RunAI Streamer][SHIM] list_safetensors is called with path: {path}")
         rewritten_path = self.convert_remote_path_to_local_path(path)
         local_paths = original_list_safetensors(rewritten_path, s3_credentials)
         remote_paths = [
@@ -112,7 +111,7 @@ class StreamerPatcher:
                           allow_pattern: Optional[List[str]] = None,
                           ignore_pattern: Optional[List[str]] = None,
                           s3_credentials: Optional[S3Credentials] = None) -> None:
-        logger.debug(f"[RunAI Streamer][SHIM] pull_files is called with path: {display_path(model_path)}")
+        logger.debug(f"[RunAI Streamer][SHIM] pull_files is called with path: {model_path}")
         
         # 1. Check if it's a path we're mocking (S3 or GS)
         if not self.is_remote_path(model_path):
@@ -120,7 +119,7 @@ class StreamerPatcher:
             raise NotImplementedError("pull files is not implemented for file system paths")
         
         source_dir = self.convert_remote_path_to_local_path(model_path)
-        logger.debug(f"[RunAI Streamer][SHIM] pull_files: Simulating download from '{display_path(model_path)}' (using local: '{display_path(source_dir)}') to '{dst}'")
+        logger.debug(f"[RunAI Streamer][SHIM] pull_files: Simulating download from '{model_path}' (using local: '{source_dir}') to '{dst}'")
 
         # 2. Simulate list_objects_v2 by walking the local dir
         all_local_files_relative = []
@@ -203,7 +202,7 @@ class StreamerPatcher:
                           device: Optional[str] = "cpu", is_distributed: bool = False,
                           tensor_names: Optional[Collection[str]] = None,
                           owned: bool = True) -> None:
-            logger.debug(f"[RunAI Streamer][SHIM] stream_file is called with path: {display_path(path)}")
+            logger.debug(f"[RunAI Streamer][SHIM] stream_file is called with path: {path}")
             self.files_to_tensors_metadata = {}
             rewritten_path = self.patcher.convert_remote_path_to_local_path(path)
             res = self.original_streamer.stream_file(

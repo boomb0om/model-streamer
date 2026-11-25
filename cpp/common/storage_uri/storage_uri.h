@@ -8,13 +8,9 @@
 #pragma once
 
 #include <string>
-#include <string_view>
 
 namespace runai::llm::streamer::common::s3
 {
-
-// For diagnostics only. Requests always use the original URI.
-std::string_view display_path(std::string_view path);
 
 struct StorageUri
 {

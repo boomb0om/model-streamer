@@ -2,11 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import json
-import os
 import re
 import struct
-import subprocess
-import sys
 import threading
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -155,7 +152,6 @@ def test_failed_range_is_reported(tmp_path, mode):
     assert requests == [("GET", SIGNED_PATH, "bytes=0-7")]
     if mode in (200, "missing", "bounds"):
         assert "expected 206" in str(error.value)
-    assert "signature" not in str(error.value)
 
 
 def test_failed_tensor_read_surfaces_in_get_tensors(tmp_path):
@@ -166,26 +162,6 @@ def test_failed_tensor_read_surfaces_in_get_tensors(tmp_path):
             with pytest.raises(ValueError, match="File access error"):
                 next(iter(streamer.get_tensors()))
     assert_ranges(requests, SIGNED_PATH, data)
-
-
-def test_signed_query_absent_from_python_and_native_diagnostics():
-    # Logging configuration is read at library load. Start a fresh interpreter with both loggers on
-    # and a valid 206 carrying a corrupt safetensors length so the Python exception names the path.
-    with serve({SIGNED_PATH: b"\xff" * 8}) as (base, requests):
-        result = subprocess.run([sys.executable, "-c", """
-import logging
-import sys
-logging.addLevelName(5, "SPAM")  # Enable the native logger's most verbose level in Python too.
-from runai_model_streamer import SafetensorsStreamer
-logging.basicConfig(level=logging.DEBUG)
-with SafetensorsStreamer() as streamer:
-    streamer.stream_file(sys.argv[1], tensor_names={"x"})
-""", base + SIGNED_PATH], env=dict(os.environ, RUNAI_STREAMER_LOG_LEVEL="SPAM",
-                                   RUNAI_STREAMER_LOG_TO_STDERR="1"), capture_output=True, text=True)
-    assert requests == [("GET", SIGNED_PATH, "bytes=0-7")]
-    assert result.returncode != 0
-    assert "exceeds limit" in result.stderr
-    assert "signature" not in result.stdout + result.stderr
 
 
 def test_directory_listing_explains_how_to_supply_shards():

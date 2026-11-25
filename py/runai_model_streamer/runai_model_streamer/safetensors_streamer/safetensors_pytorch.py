@@ -8,9 +8,7 @@ import struct
 import json
 from typing import List, Tuple, Optional, Any
 from runai_model_streamer.distributed_streamer.distributed_streamer import (DistributedStreamer, FileChunks)
-from runai_model_streamer.s3_utils.s3_utils import (
-    S3Credentials, display_path, is_s3_path, is_gs_path, is_azure_path, is_http_path,
-)
+from runai_model_streamer.s3_utils.s3_utils import S3Credentials, is_s3_path, is_gs_path, is_azure_path, is_http_path
 
 SAFETENSORS_DATA_OFFSETS_KEY = "data_offsets"
 SAFETENSORS_NAME_KEY = "name"
@@ -185,14 +183,14 @@ class SafetensorsMetadata:
         try:
             for file_index, ready_chunk_index, buffer in fs.get_chunks():
                 if buffer.nelement() < 8:
-                    raise ValueError(f"File {display_path(filenames[file_index])} is truncated or empty.")
+                    raise ValueError(f"File {filenames[file_index]} is truncated or empty.")
 
                 size = struct.unpack(
                     LITTLE_ENDIAN_LONG_LONG_STRUCT_FORMAT, buffer.numpy()
                 )[0]
 
                 if size > MAX_HEADER_SIZE:
-                     raise ValueError(f"Corrupted File: Header size {size} in {display_path(filenames[file_index])} exceeds limit of {MAX_HEADER_SIZE} bytes.")
+                     raise ValueError(f"Corrupted File: Header size {size} in {filenames[file_index]} exceeds limit of {MAX_HEADER_SIZE} bytes.")
                 
                 header_sizes[file_index] = size
         except Exception as e:
@@ -212,9 +210,9 @@ class SafetensorsMetadata:
                     json_str = json_bytes.decode('utf-8')
                     metadatas[file_index] = json.loads(json_str)
                 except UnicodeDecodeError:
-                    raise ValueError(f"Corrupted File: Header in {display_path(filenames[file_index])} is not valid UTF-8.")
+                    raise ValueError(f"Corrupted File: Header in {filenames[file_index]} is not valid UTF-8.")
                 except json.JSONDecodeError as e:
-                    raise ValueError(f"Corrupted File: Header in {display_path(filenames[file_index])} is not valid JSON. Error: {e}")
+                    raise ValueError(f"Corrupted File: Header in {filenames[file_index]} is not valid JSON. Error: {e}")
         except Exception as e:
             if isinstance(e, ValueError): raise e
             raise ValueError(f"Streamer failed to read header body (likely truncated file): {str(e)}")

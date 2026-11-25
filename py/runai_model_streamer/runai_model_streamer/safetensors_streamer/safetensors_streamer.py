@@ -23,7 +23,6 @@ from runai_model_streamer.distributed_streamer import DistributedStreamer
 import runai_model_streamer.safetensors_streamer.safetensors_pytorch as safetensors_pytorch
 
 from runai_model_streamer.s3_utils.s3_utils import (
-    display_path,
     is_http_path,
     S3Credentials,
     is_s3_path,
@@ -120,7 +119,7 @@ class ObjectStorageModel:
     ) -> None:
         if not (is_s3_path(model_path) or is_gs_path(model_path) or is_azure_path(model_path)):
             raise ValueError(
-                f"model_path {display_path(model_path)!r} is not a supported object storage path "
+                f"model_path {model_path!r} is not a supported object storage path "
                 "(expected s3://, gs://, or az://)"
             )
         self.dir = dst.rstrip("/") or "/"

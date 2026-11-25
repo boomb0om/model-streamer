@@ -108,7 +108,7 @@ Streamer::~Streamer()
 
 common::ResponseCode Streamer::sync_read(const std::string & path, size_t file_offset, size_t bytesize, void * dst)
 {
-    LOG(SPAM) << "Requested to read " << bytesize << " bytes from " << common::s3::display_path(path) << " offset " << file_offset;
+    LOG(SPAM) << "Requested to read " << bytesize << " bytes from " << path << " offset " << file_offset;
 
     auto r = async_read(path, file_offset, bytesize, dst, 1, &bytesize);
     if (r != common::ResponseCode::Success)
@@ -365,7 +365,7 @@ common::ResponseCode Streamer::async_request(
         }
 
         LOG(DEBUG) << "Submission " << submission_id << " creating batches for file index " << transfer.file_index
-                   << " path: " << common::s3::display_path(path) << " offset " << transfer.offset << " size " << transfer.size
+                   << " path: " << path << " offset " << transfer.offset << " size " << transfer.size
                    << " ranges " << transfer.range_sizes.size() << " from index " << transfer.first_range_index;
 
         Batches batches(submission_id, transfer.file_index, transfer.tasks, _config, _responder, path, params,
@@ -539,14 +539,14 @@ void Streamer::verify_requests(std::vector<FileRanges> & request)
 {
     for (const auto & file : request)
     {
-        LOG(SPAM) << "Requested to read asynchronously " << file.ranges.size() << " ranges from " << common::s3::display_path(file.path);
+        LOG(SPAM) << "Requested to read asynchronously " << file.ranges.size() << " ranges from " << file.path;
 
         for (const auto & range : file.ranges)
         {
             // a zero-sized range writes nothing, so a null destination is harmless there
             if (range.size > 0 && range.dst == nullptr)
             {
-                LOG(ERROR) << "Destination buffer is null for " << common::s3::display_path(file.path) << " offset " << range.offset;
+                LOG(ERROR) << "Destination buffer is null for " << file.path << " offset " << range.offset;
                 throw common::Exception(common::ResponseCode::InvalidParameterError);
             }
         }

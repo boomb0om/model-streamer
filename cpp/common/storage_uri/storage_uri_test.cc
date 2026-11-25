@@ -9,7 +9,6 @@
 #include <gtest/gtest.h>
 
 #include <memory>
-#include <sstream>
 
 #include "utils/random/random.h"
 
@@ -22,7 +21,7 @@ TEST(Uri, Empty)
     EXPECT_THROW(uri = std::make_unique<StorageUri>(""), std::exception);
 }
 
-TEST(Uri, HttpPreservesOriginalUrlAndRedactsItsQuery)
+TEST(Uri, HttpPreservesOriginalUrl)
 {
     for (const std::string scheme : {"http", "https"})
     {
@@ -32,12 +31,7 @@ TEST(Uri, HttpPreservesOriginalUrlAndRedactsItsQuery)
         EXPECT_EQ(uri.uri, url);
         EXPECT_EQ(uri.bucket, "host:8080");
         EXPECT_EQ(uri.path, "a%2Fb");
-        std::ostringstream log;
-        log << uri;
-        EXPECT_EQ(log.str().find("secret"), std::string::npos);
-        EXPECT_EQ(display_path(url), scheme + "://host:8080/a%2Fb");
     }
-    EXPECT_EQ(display_path("/local/file?name"), "/local/file?name");
 }
 
 TEST(Uri, Valid_S3_Path)

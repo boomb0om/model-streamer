@@ -44,7 +44,7 @@ For each file, the streamer requests bytes 0–7 for the header length, then the
 
 For a sharded checkpoint, pass the explicit list of direct file URLs to `stream_files(urls, tensor_names={...})`. HTTP and HTTPS URLs can appear in the same list. Directory listing, shard discovery and repository-page URLs are unsupported.
 
-Use a direct public URL or supply a pre-signed GET URL with its original query string and with the `Range` header omitted from the signature. libcurl verifies HTTPS certificates. Basic Auth, bearer tokens, custom request headers and redirects are unsupported.
+Use a direct public URL or supply a pre-signed GET URL with its original query string and with the `Range` header omitted from the signature. Logs and error messages can include the full URL, including the query string. libcurl verifies HTTPS certificates. Basic Auth, bearer tokens, custom request headers and redirects are unsupported.
 
 #### Streaming from multiple files
 

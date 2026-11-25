@@ -72,10 +72,6 @@ def is_http_path(path: str) -> bool:
     return path.startswith(("http://", "https://"))
 
 
-def display_path(path: str) -> str:
-    return path.partition("?")[0].partition("#")[0] if is_http_path(path) else path
-
-
 def is_s3_path(path: str) -> bool:
     """
     Checks if the given string is an S3 path.
