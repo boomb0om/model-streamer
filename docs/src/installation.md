@@ -4,7 +4,7 @@ Model Streamer is a Python package available for installation in PyPi. Installin
 
 ### Setup
 
-The Run:ai Streamer comes with precompiled C++ code compatible to run on any Linux machine. Installing the streamer with the pip command is supported on Linux x86_64 and aarch64.
+The Run:ai Streamer comes with precompiled C++ code compatible to run on any Linux machine. Installing the streamer with the pip command is supported for x86_64 processors.
 
 ### Installation
 
