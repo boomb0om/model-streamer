@@ -330,7 +330,8 @@ tests. Python feedback therefore does not wait for the cloud backend builds.
 After both component build matrices succeed, two integration jobs download their
 matching wheels and run `make ci-test-integration` on native AMD64 and ARM64
 runners: integration suites followed by the filesystem strategy sweep. Each uses
-`make ci-install` to install the core and HTTP wheels through the `[http]` extra and the three cloud wheels via their package Makefiles. Python distributed tests load the installed real library; the mock
+`make ci-install` to install all five wheels via their package Makefiles.
+Python distributed tests load the installed real library; the mock
 unit tests retain their existing override. Each integration job also reuses the
 installed core library for the Python filesystem strategy
 tests through `test-unit-real-installed`, avoiding another full native build.
