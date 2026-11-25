@@ -8,6 +8,8 @@
 #include <condition_variable>
 #include <list>
 
+#include <curl/curl.h>
+
 #include "common/client_mgr/client_mgr.h"
 #include "utils/threadpool/threadpool.h"
 
@@ -29,6 +31,7 @@ class Client : public common::IClient
                       api::ObjectWaitMode_t mode);
     void stop();
     void release();
+    size_t max_inflight_bytes() const { return _max_inflight_bytes; }
 
  private:
     using Events = std::list<api::ObjectCompletionEvent_t>;
@@ -39,9 +42,13 @@ class Client : public common::IClient
         char * buffer;
         Events::iterator event;
     };
-    void perform(Request && request);
+    class Worker;
+    void perform(CURL * curl, Request && request);
 
-    unsigned _readers;
+    const unsigned _readers;
+    const unsigned _threads;
+    const size_t _chunk_bytesize;
+    const size_t _max_inflight_bytes;
     std::atomic<bool> _stopped{false};
     std::mutex _mutex;
     std::condition_variable _changed;

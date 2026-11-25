@@ -8,16 +8,50 @@
 #include <algorithm>
 #include <chrono>
 #include <limits>
+#include <memory>
 
 #include "http/client/range_get.h"
 
 namespace runai::llm::streamer::impl::http
 {
 
+namespace
+{
+
+size_t inflight_window(unsigned threads, size_t chunk_bytesize)
+{
+    const auto chunks = std::max(2.0, api::inflight_window_margin() * threads);
+    const auto bytes = chunks * chunk_bytesize;
+    constexpr auto unbounded = std::numeric_limits<size_t>::max();
+    return bytes < static_cast<double>(unbounded) ? static_cast<size_t>(bytes) : unbounded - 1;
+}
+
+} // namespace
+
+class Client::Worker final : public utils::Worker<Request>
+{
+ public:
+    explicit Worker(Client & client) : _client(client) {}
+
+    void execute(Request && request, std::atomic<bool> &) override
+    {
+        _client.perform(_curl.get(), std::move(request));
+    }
+
+    void drain(std::atomic<bool> &) override {}
+    bool idle() const override { return true; }
+
+ private:
+    Client & _client;
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> _curl{curl_easy_init(), curl_easy_cleanup};
+};
+
 Client::Client(const api::ObjectClientConfig_t & config) :
     _readers(config.concurrent_readers),
-    _pool([this](Request && request, std::atomic<bool> &) { perform(std::move(request)); },
-          std::max(1U, std::max(8U, std::thread::hardware_concurrency()) / std::max(1U, _readers)))
+    _threads(std::max(1U, std::max(8U, std::thread::hardware_concurrency()) / std::max(1U, _readers))),
+    _chunk_bytesize(std::max(size_t{1}, config.default_storage_chunk_size)),
+    _max_inflight_bytes(inflight_window(_threads, _chunk_bytesize)),
+    _pool([this] { return std::make_unique<Worker>(*this); }, _threads)
 {}
 
 Client::~Client()
@@ -27,7 +61,8 @@ Client::~Client()
 
 bool Client::verify_credentials(const api::ObjectClientConfig_t & config) const
 {
-    return !_stopped && config.concurrent_readers == _readers;
+    return !_stopped && config.concurrent_readers == _readers &&
+           std::max(size_t{1}, config.default_storage_chunk_size) == _chunk_bytesize;
 }
 
 ResponseCode Client::read(const char * url, api::ObjectRange_t range, char * buffer, api::ObjectRequestId_t id)
@@ -54,14 +89,15 @@ ResponseCode Client::read(const char * url, api::ObjectRange_t range, char * buf
     return ResponseCode::Success;
 }
 
-void Client::perform(Request && request)
+void Client::perform(CURL * curl, Request && request)
 {
     auto & event = *request.event;
     try
     {
         if (!_stopped)
         {
-            event.response_code = range_get(request.url, request.range, request.buffer, event.bytes_transferred, _stopped);
+            event.response_code = range_get(curl, request.url, request.range, request.buffer,
+                                            event.bytes_transferred, _stopped);
         }
     }
     catch (const std::exception &)

@@ -7,7 +7,9 @@ runai_cc_auto_library(
     name = "client",
     deps = [
         "@curl",
+        "//common/backend_api/object_storage",
         "//common/client_mgr",
+        "//utils/scope_guard",
         "//utils/threadpool",
     ],
 )

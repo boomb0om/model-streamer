@@ -41,6 +41,9 @@ def serve(files, *, mode="ok"):
             if self.path not in files:
                 self.send_error(403)
                 return
+            if mode == "retry_once" and len(requests) == 1:
+                self.send_error(503)
+                return
             if mode == "redirect" and self.path == "/redirect":
                 self.send_response(307)
                 self.send_header("Location", "/model")
@@ -162,6 +165,16 @@ def test_failed_tensor_read_surfaces_in_get_tensors(tmp_path):
             with pytest.raises(ValueError, match="File access error"):
                 next(iter(streamer.get_tensors()))
     assert_ranges(requests, SIGNED_PATH, data)
+
+
+def test_retries_transient_range_with_application_budget(tmp_path, monkeypatch):
+    monkeypatch.setenv("RUNAI_STREAMER_S3_TIMEOUT", "5")
+    data = model(tmp_path / "model", "x", 1)
+    with serve({SIGNED_PATH: data}, mode="retry_once") as (base, requests):
+        result = read_one(base + SIGNED_PATH, "x")
+    torch.testing.assert_close(result["x"], torch.tensor([[1, 2]], dtype=torch.int32))
+    assert requests[:2] == [("GET", SIGNED_PATH, "bytes=0-7")] * 2
+    assert_ranges(requests[1:], SIGNED_PATH, data)
 
 
 def test_directory_listing_explains_how_to_supply_shards():

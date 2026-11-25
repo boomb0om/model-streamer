@@ -387,6 +387,10 @@ Set this variable to `0`, or leave it unset, to disable application-level
 retries. In that mode, the original `FileAccessError` is returned after the AWS
 CRT retry policy finishes.
 
+HTTP and HTTPS reads use the same retry window for temporary network failures
+and HTTP 408, 429, 500, 502, 503, and 504 responses. Each HTTP attempt allows
+10 seconds to connect and aborts after 30 seconds below 1 byte per second.
+
 #### Values accepted
 
 Non-negative integer, in seconds

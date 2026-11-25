@@ -4,6 +4,7 @@
  */
 
 #include "http/client/client.h"
+#include "http/client/range_get.h"
 
 #include <arpa/inet.h>
 #include <poll.h>
@@ -13,6 +14,7 @@
 #include <algorithm>
 #include <chrono>
 #include <future>
+#include <memory>
 #include <thread>
 
 #include <curl/curl.h>
@@ -24,12 +26,12 @@ namespace
 {
 using namespace std::chrono_literals;
 
-// Each loopback listener serves one request. Tests can hold the last part of the body until
+// Each listener uses one loopback connection. Tests can hold the last part of the body until
 // cancellation has completed, independently of the order in which workers connect.
 class Server
 {
  public:
-    Server(std::string reply, std::string tail = "")
+    Server(std::string reply, std::string tail = "", unsigned requests = 1)
     {
         _socket = socket(AF_INET, SOCK_STREAM, 0);
         sockaddr_in address{};
@@ -40,23 +42,27 @@ class Server
             listen(_socket, 1) || getsockname(_socket, reinterpret_cast<sockaddr *>(&address), &size))
             throw std::runtime_error("cannot listen on loopback");
         url = "http://127.0.0.1:" + std::to_string(ntohs(address.sin_port)) + "/model%2F1?b=2&a=1";
-        _thread = std::thread([this, reply, tail] {
+        _thread = std::thread([this, reply, tail, requests] {
             pollfd pfd{_socket, POLLIN, 0};
             if (poll(&pfd, 1, 5000) <= 0) return;
             int fd = accept(_socket, nullptr, nullptr);
             if (fd < 0) return;
-            std::string request;
-            char chunk[1024];
-            while (request.find("\r\n\r\n") == std::string::npos)
+            for (unsigned i = 0; i < requests; ++i)
             {
-                auto n = recv(fd, chunk, sizeof(chunk), 0);
-                if (n <= 0) break;
-                request.append(chunk, n);
+                std::string request;
+                char chunk[1024];
+                pollfd connection{fd, POLLIN, 0};
+                while (request.find("\r\n\r\n") == std::string::npos && poll(&connection, 1, 5000) > 0)
+                {
+                    auto n = recv(fd, chunk, sizeof(chunk), 0);
+                    if (n <= 0) break;
+                    request.append(chunk, n);
+                }
+                EXPECT_NE(request.find("GET /model%2F1?b=2&a=1 HTTP/"), std::string::npos);
+                EXPECT_NE(request.find("Range: bytes=7-9\r\n"), std::string::npos);
+                send(fd, reply.data(), reply.size(), MSG_NOSIGNAL);
+                if (i == 0) sent.set_value();
             }
-            EXPECT_NE(request.find("GET /model%2F1?b=2&a=1 HTTP/"), std::string::npos);
-            EXPECT_NE(request.find("Range: bytes=7-9\r\n"), std::string::npos);
-            send(fd, reply.data(), reply.size(), MSG_NOSIGNAL);
-            sent.set_value();
             if (!tail.empty())
             {
                 _release.get_future().wait_for(5s);
@@ -144,6 +150,44 @@ TEST_F(HttpClient, ZeroLengthAndOverflow)
     EXPECT_EQ(event.bytes_transferred, 0U);
     char buffer;
     EXPECT_EQ(client.read("unused", {SIZE_MAX, 2}, &buffer, 6), ResponseCode::InvalidParameterError);
+}
+
+TEST_F(HttpClient, TimesOutWhileWaitingForBody)
+{
+    Server server(partial + valid + "Content-Length: 3\r\n\r\n", "abc");
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(curl_easy_init(), curl_easy_cleanup);
+    std::atomic<bool> stopped{false};
+    char buffer[3]{};
+    size_t written = 0;
+    EXPECT_EQ(range_get(curl.get(), server.url, {7, 3}, buffer, written, stopped, 1),
+              ResponseCode::RetryableFileAccessError);
+    EXPECT_EQ(written, 0U);
+}
+
+TEST_F(HttpClient, ReusesConnectionForConsecutiveRanges)
+{
+    Server server(partial + valid + "Content-Length: 3\r\n\r\nabc", "", 2);
+    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(curl_easy_init(), curl_easy_cleanup);
+    std::atomic<bool> stopped{false};
+    for (unsigned i = 0; i < 2; ++i)
+    {
+        std::string buffer(3, '.');
+        size_t written = 0;
+        ASSERT_EQ(range_get(curl.get(), server.url, {7, 3}, buffer.data(), written, stopped, 1),
+                  ResponseCode::Success);
+        EXPECT_EQ(buffer, "abc");
+        EXPECT_EQ(written, 3U);
+    }
+}
+
+TEST_F(HttpClient, WindowAndReuseAccountForChunkSize)
+{
+    api::ObjectClientConfig_t config{nullptr, 1024, nullptr, 0, 4};
+    EXPECT_GE(client.max_inflight_bytes(), 2 * config.default_storage_chunk_size);
+    EXPECT_NE(client.max_inflight_bytes(), SIZE_MAX);
+    EXPECT_TRUE(client.verify_credentials(config));
+    config.default_storage_chunk_size *= 2;
+    EXPECT_FALSE(client.verify_credentials(config));
 }
 
 TEST_F(HttpClient, ConcurrentCompletionsKeepTheirRequestIDs)

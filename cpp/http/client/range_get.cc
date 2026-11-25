@@ -5,14 +5,13 @@
 
 #include "http/client/range_get.h"
 
-#include <curl/curl.h>
 #include <charconv>
 #include <cstring>
-#include <memory>
 #include <string_view>
 #include <strings.h>
 
 #include "utils/logging/logging.h"
+#include "utils/scope_guard/scope_guard.h"
 
 namespace runai::llm::streamer::impl::http
 {
@@ -121,31 +120,60 @@ int progress(void * context, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
     return static_cast<Transfer *>(context)->stopped.load() ? 1 : 0;
 }
 
+bool retryable(CURLcode result, long status)
+{
+    if (status >= 200 && status != 206)
+    {
+        return status == 408 || status == 429 || status == 500 ||
+               status == 502 || status == 503 || status == 504;
+    }
+
+    switch (result)
+    {
+    case CURLE_COULDNT_RESOLVE_PROXY:
+    case CURLE_COULDNT_RESOLVE_HOST:
+    case CURLE_COULDNT_CONNECT:
+    case CURLE_OPERATION_TIMEDOUT:
+    case CURLE_GOT_NOTHING:
+    case CURLE_SEND_ERROR:
+    case CURLE_RECV_ERROR:
+    case CURLE_HTTP2:
+    case CURLE_HTTP2_STREAM:
+        return true;
+    default:
+        return false;
+    }
+}
+
 } // namespace
 
-common::ResponseCode range_get(const std::string & url, common::backend_api::ObjectRange_t range,
-                               char * buffer, size_t & written, const std::atomic<bool> & stopped)
+common::ResponseCode range_get(CURL * curl, const std::string & url, common::backend_api::ObjectRange_t range,
+                               char * buffer, size_t & written, const std::atomic<bool> & stopped,
+                               long stall_timeout_seconds)
 {
     using common::ResponseCode;
     if (range.length == 0) return ResponseCode::Success;
-    const std::string bounds = std::to_string(range.offset) + "-" + std::to_string(range.offset + (range.length - 1));
-    std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> curl(curl_easy_init(), curl_easy_cleanup);
     if (!curl) return ResponseCode::UnknownError;
+    const std::string bounds = std::to_string(range.offset) + "-" + std::to_string(range.offset + (range.length - 1));
     Transfer transfer{range, buffer, written, stopped};
+    // Clear request options and callback pointers before their context goes away. The connection cache survives.
+    utils::ScopeGuard reset([curl] { curl_easy_reset(curl); });
 
-    const auto set = [&](CURLoption option, auto value) { return curl_easy_setopt(curl.get(), option, value) == CURLE_OK; };
+    const auto set = [&](CURLoption option, auto value) { return curl_easy_setopt(curl, option, value) == CURLE_OK; };
     if (!set(CURLOPT_URL, url.c_str()) || !set(CURLOPT_RANGE, bounds.c_str()) ||
         !set(CURLOPT_PATH_AS_IS, 1L) ||
         !set(CURLOPT_PROTOCOLS, long(CURLPROTO_HTTP | CURLPROTO_HTTPS)) ||
         !set(CURLOPT_DISALLOW_USERNAME_IN_URL, 1L) || !set(CURLOPT_SUPPRESS_CONNECT_HEADERS, 1L) ||
         !set(CURLOPT_NOSIGNAL, 1L) || !set(CURLOPT_NOPROGRESS, 0L) ||
+        !set(CURLOPT_CONNECTTIMEOUT_MS, 10000L) ||
+        !set(CURLOPT_LOW_SPEED_LIMIT, 1L) || !set(CURLOPT_LOW_SPEED_TIME, stall_timeout_seconds) ||
         !set(CURLOPT_XFERINFOFUNCTION, progress) || !set(CURLOPT_XFERINFODATA, &transfer) ||
         !set(CURLOPT_HEADERFUNCTION, header) || !set(CURLOPT_HEADERDATA, &transfer) ||
         !set(CURLOPT_WRITEFUNCTION, body) || !set(CURLOPT_WRITEDATA, &transfer))
     {
         return ResponseCode::UnknownError;
     }
-    const auto result = curl_easy_perform(curl.get());
+    const auto result = curl_easy_perform(curl);
     if (result == CURLE_OK && transfer.status == 206 && transfer.valid_range && written == range.length)
         return ResponseCode::Success;
     LOG(ERROR) << "HTTP range GET failed (status " << transfer.status << ", " << curl_easy_strerror(result)
@@ -154,6 +182,8 @@ common::ResponseCode range_get(const std::string & url, common::backend_api::Obj
         return ResponseCode::FileTruncatedError;
     if (!stopped && (transfer.status == 200 || (transfer.status == 206 && result == CURLE_WRITE_ERROR)))
         return ResponseCode::HTTPInvalidRangeResponse;
+    if (!stopped && result != CURLE_ABORTED_BY_CALLBACK && retryable(result, transfer.status))
+        return ResponseCode::RetryableFileAccessError;
     return ResponseCode::FileAccessError;
 }
 
