@@ -82,7 +82,7 @@ S3Stop::~S3Stop()
 {
     try
     {
-        common::s3::S3ClientWrapper::stop(plugin);
+        common::s3::S3ClientWrapper::stop();
     }
     catch(...)
     {

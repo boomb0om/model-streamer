@@ -674,7 +674,7 @@ common::s3::S3ClientWrapper::Params Streamer::handle_s3(unsigned file_index, con
     {
         // streaming-only setup (fd limit + stop), once. If the fd-limit raise throws
         // (InsufficientFdLimit) the flag stays unset, so a later submission retries.
-        std::call_once(_s3_stream_init_flag, [this, &uri]()
+        std::call_once(_s3_stream_init_flag, [this]()
         {
             // adjust fd limit acording to concurrency
             auto fd_limit = utils::get_cur_file_descriptors();
@@ -690,7 +690,7 @@ common::s3::S3ClientWrapper::Params Streamer::handle_s3(unsigned file_index, con
                 LOG(INFO) << "Increasing fd soft limit to " << desired_fd_limit << " for concurrency level " << _config->s3_concurrency;
                 _fd_limit = std::make_unique<utils::FdLimitSetter>(desired_fd_limit);
             }
-            _s3_stop = std::make_unique<S3Stop>(common::s3::S3ClientWrapper::BackendHandle::get_libstreamers_plugin_type(uri).id());
+            _s3_stop = std::make_unique<S3Stop>();
         });
 
         // S3Cleanup: shared by list_files and streaming, created once

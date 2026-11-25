@@ -182,7 +182,8 @@ common::ResponseCode BackendPools::lock_object_plugin(Plugin plugin)
         // per-worker pool: each thread owns an ObjectStorageWorker (from the factory) with its own in-flight window
         _object_storage_pool = std::make_unique<utils::ThreadPool<Workload>>(_object_storage_factory, _object_storage_size);
         // Commit the lock only now that the pool exists. _ready_plugin is stored last (release), so a fast-path
-        // acquire that observes it is guaranteed the pool is built and safe to dispatch to.
+        // acquire that observes it is guaranteed the pool is built and safe to dispatch to. The s3_wrapper
+        // backend handle is a process-wide static, hence the single-plugin lock.
         _plugin = plugin;
         _ready_plugin.store(static_cast<int>(plugin), std::memory_order_release);
         return common::ResponseCode::Success;

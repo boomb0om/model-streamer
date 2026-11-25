@@ -7,7 +7,6 @@
 
 #include <curl/curl.h>
 #include <charconv>
-#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <string_view>
@@ -82,9 +81,7 @@ size_t header(char * data, size_t, size_t bytes, void * context)
         if (line.empty())
         {
             t.headers_done = true;
-            // Allow interim responses and redirects. Reject 200 before consuming its body.
-            if (t.status >= 200 && (t.status < 300 || t.status >= 400) &&
-                !(t.status == 206 && t.valid_range)) return 0;
+            if (t.status >= 200 && !(t.status == 206 && t.valid_range)) return 0;
         }
         else if (t.status == 206)
         {
@@ -108,9 +105,7 @@ size_t header(char * data, size_t, size_t bytes, void * context)
 size_t body(char * data, size_t, size_t bytes, void * context)
 {
     auto & t = *static_cast<Transfer *>(context);
-    if (t.stopped) return 0;
-    if (t.status >= 300 && t.status < 400) return bytes;
-    if (t.status != 206 || !t.headers_done || !t.valid_range) return 0;
+    if (t.stopped || t.status != 206 || !t.headers_done || !t.valid_range) return 0;
     if (bytes > t.range.length - t.written)
     {
         t.oversized = true;
@@ -140,9 +135,8 @@ common::ResponseCode range_get(const std::string & url, common::backend_api::Obj
 
     const auto set = [&](CURLoption option, auto value) { return curl_easy_setopt(curl.get(), option, value) == CURLE_OK; };
     if (!set(CURLOPT_URL, url.c_str()) || !set(CURLOPT_RANGE, bounds.c_str()) ||
-        !set(CURLOPT_PATH_AS_IS, 1L) || !set(CURLOPT_FOLLOWLOCATION, 1L) || !set(CURLOPT_MAXREDIRS, 10L) ||
+        !set(CURLOPT_PATH_AS_IS, 1L) ||
         !set(CURLOPT_PROTOCOLS, long(CURLPROTO_HTTP | CURLPROTO_HTTPS)) ||
-        !set(CURLOPT_REDIR_PROTOCOLS, long(CURLPROTO_HTTP | CURLPROTO_HTTPS)) ||
         !set(CURLOPT_DISALLOW_USERNAME_IN_URL, 1L) || !set(CURLOPT_SUPPRESS_CONNECT_HEADERS, 1L) ||
         !set(CURLOPT_NOSIGNAL, 1L) || !set(CURLOPT_NOPROGRESS, 0L) ||
         !set(CURLOPT_XFERINFOFUNCTION, progress) || !set(CURLOPT_XFERINFODATA, &transfer) ||
@@ -150,10 +144,6 @@ common::ResponseCode range_get(const std::string & url, common::backend_api::Obj
         !set(CURLOPT_WRITEFUNCTION, body) || !set(CURLOPT_WRITEDATA, &transfer))
     {
         return ResponseCode::UnknownError;
-    }
-    if (const auto * ca = std::getenv("CURL_CA_BUNDLE"); ca && *ca && !set(CURLOPT_CAINFO, ca))
-    {
-        return ResponseCode::CaFileNotFound;
     }
     const auto result = curl_easy_perform(curl.get());
     if (result == CURLE_OK && transfer.status == 206 && transfer.valid_range && written == range.length)

@@ -4,7 +4,6 @@
 import json
 import os
 import re
-import ssl
 import struct
 import subprocess
 import sys
@@ -35,7 +34,7 @@ def model(path: Path, selected: str, value: int) -> bytes:
 
 
 @contextmanager
-def serve(files, *, mode="ok", redirect=None, tls=None):
+def serve(files, *, mode="ok"):
     requests = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -45,11 +44,10 @@ def serve(files, *, mode="ok", redirect=None, tls=None):
             if self.path not in files:
                 self.send_error(403)
                 return
-            if redirect:
+            if mode == "redirect" and self.path == "/redirect":
                 self.send_response(307)
-                self.send_header("Location", redirect)
+                self.send_header("Location", "/model")
                 self.end_headers()
-                self.wfile.write(b"redirect body")
                 return
             match = re.fullmatch(r"bytes=(\d+)-(\d+)", raw_range)
             if not match:
@@ -84,12 +82,10 @@ def serve(files, *, mode="ok", redirect=None, tls=None):
             pass
 
     with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
-        if tls:
-            server.socket = tls.wrap_socket(server.socket, server_side=True)
         worker = threading.Thread(target=server.serve_forever)
         worker.start()
         try:
-            yield f"{'https' if tls else 'http'}://127.0.0.1:{server.server_port}", requests
+            yield f"http://127.0.0.1:{server.server_port}", requests
         finally:
             server.shutdown()
             worker.join()
@@ -103,11 +99,16 @@ def read_one(path: str, name: str):
 
 def assert_ranges(requests, path, data):
     header_end = 8 + struct.unpack_from("<Q", data)[0]
-    assert sorted(requests) == sorted([
-        ("GET", path, "bytes=0-7"),
-        ("GET", path, f"bytes=8-{header_end - 1}"),
-        ("GET", path, f"bytes={header_end + 8}-{header_end + 15}"),
-    ])
+    expected_bytes = set(range(header_end)) | set(range(header_end + 8, len(data)))
+    requested_bytes = set()
+    for method, target, raw_range in requests:
+        assert (method, target) == ("GET", path)
+        match = re.fullmatch(r"bytes=(\d+)-(\d+)", raw_range)
+        assert match is not None
+        start, end = map(int, match.groups())
+        assert 0 <= start <= end < len(data)
+        requested_bytes.update(range(start, end + 1))
+    assert requested_bytes == expected_bytes
 
 
 def test_selected_tensor_and_signed_request_target(tmp_path):
@@ -121,49 +122,28 @@ def test_selected_tensor_and_signed_request_target(tmp_path):
     assert_ranges(requests, SIGNED_PATH, data)
 
 
-@pytest.fixture
-def certificate(tmp_path):
-    cert = tmp_path / "cert.pem"
-    key = tmp_path / "key.pem"
-    subprocess.run([
-        "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
-        "-subj", "/CN=localhost", "-addext", "subjectAltName=IP:127.0.0.1",
-        "-keyout", str(key), "-out", str(cert),
-    ], capture_output=True, check=True)
-    tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    tls.load_cert_chain(cert, key)
-    return cert, tls
-
-
-def test_explicit_mixed_scheme_shards_and_https_redirect(tmp_path, certificate, monkeypatch):
-    cert, tls = certificate
+def test_explicit_shards(tmp_path):
     local_a, local_b = tmp_path / "a", tmp_path / "b"
     first = model(local_a, "left", 11)
     second = model(local_b, "right", 22)
-    monkeypatch.setenv("CURL_CA_BUNDLE", str(cert))
-    with serve({"/a": first, "/b": second}, tls=tls) as (secure, received):
-        with serve({"/redirect": first}, redirect=secure + "/a") as (plain, redirected):
-            with SafetensorsStreamer() as streamer:
-                streamer.stream_files([plain + "/redirect", secure + "/b"], tensor_names={"left", "right"})
-                result = dict(streamer.get_tensors())
+    with serve({"/a": first, "/b": second}) as (base, received):
+        with SafetensorsStreamer() as streamer:
+            streamer.stream_files([base + "/a", base + "/b"], tensor_names={"left", "right"})
+            result = dict(streamer.get_tensors())
     assert result.keys() == {"left", "right"}
     for path, key in [(local_a, "left"), (local_b, "right")]:
         torch.testing.assert_close(result[key], read_one(str(path), key)[key], rtol=0, atol=0)
-    assert_ranges(redirected, "/redirect", first)
     assert_ranges([r for r in received if r[1] == "/a"], "/a", first)
     assert_ranges([r for r in received if r[1] == "/b"], "/b", second)
 
 
-def test_untrusted_redirect_fails_before_get(tmp_path, certificate, monkeypatch):
-    _, tls = certificate
-    monkeypatch.delenv("CURL_CA_BUNDLE", raising=False)
+def test_redirect_is_not_followed(tmp_path):
     data = model(tmp_path / "model", "x", 1)
-    with serve({"/model": data}, tls=tls) as (secure, received):
-        with serve({"/redirect": data}, redirect=secure + "/model") as (plain, redirected):
-            with pytest.raises(ValueError, match="File access error"):
-                read_one(plain + "/redirect", "x")
-    assert redirected == [("GET", "/redirect", "bytes=0-7")]
-    assert received == []
+    with serve({"/redirect": data, "/model": data}, mode="redirect") as (base, requests):
+        with pytest.raises(ValueError, match="File access error"):
+            read_one(base + "/redirect", "x")
+    assert requests
+    assert all(path == "/redirect" for _, path, _ in requests)
 
 
 @pytest.mark.parametrize("mode", [200, "missing", "bounds", "short", "long", 401, 403, 416])

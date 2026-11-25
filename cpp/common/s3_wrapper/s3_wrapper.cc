@@ -212,35 +212,35 @@ common::backend_api::ObjectBackendHandle_t S3ClientWrapper::BackendHandle::backe
 
 void S3ClientWrapper::shutdown()
 {
-    std::lock_guard<std::mutex> lock(_backend_handle_mutex);
-    auto & handles = backends();
-    for (auto it = handles.begin(); it != handles.end();)
+    try
     {
-        const auto & handle = it->second;
-        if (handle.use_count() == 1)
-        {
-            handle->api.remove_all_clients();
-            if (handle->api.get_backend_shutdown_policy() == backend_api::OBJECT_SHUTDOWN_POLICY_ON_STREAMER_SHUTDOWN)
-            {
-                it = handles.erase(it);
-                continue;
-            }
-        }
-        ++it;
+        LOG(DEBUG) << "Shutting down S3 client wrapper";
+        std::shared_ptr<BackendHandle> handle = manage_backend_handle(Params(), ManageBackendHandleOp::CREATE);
+        handle->api.remove_all_clients();
+
+       // destroy according to backend shutdown policy
+       manage_backend_handle(Params(), ManageBackendHandleOp::DESTROY);
+    }
+    catch(...)
+    {
     }
 }
 
-void S3ClientWrapper::stop(std::optional<PluginID> plugin)
+void S3ClientWrapper::stop()
 {
-    std::lock_guard<std::mutex> lock(_backend_handle_mutex);
-    for (const auto & [id, handle] : backends())
+    try
     {
-        if (!plugin || id == *plugin) handle->api.cancel_all_reads();
+        std::shared_ptr<BackendHandle> handle = manage_backend_handle(Params(), ManageBackendHandleOp::CREATE);
+        ASSERT(handle != nullptr) << "Backend handle is already closed";
+        handle->api.cancel_all_reads();
+    }
+    catch(...)
+    {
     }
 }
 
 S3ClientWrapper::S3ClientWrapper(const Params & params) :
-    _backend_handle(open_backend(params)),
+    _backend_handle(manage_backend_handle(params, ManageBackendHandleOp::CREATE)),
     _s3_client(create_client(params))
 {
     LOG(SPAM) << "Created client for uri " << *params.uri;
@@ -261,22 +261,37 @@ S3ClientWrapper::~S3ClientWrapper()
 }
 
 
-// Each installed plugin has its own lifetime. In particular an S3 library retained until
-// process exit cannot serve an HTTP URL opened by a subsequent streamer.
-std::map<PluginID, std::shared_ptr<S3ClientWrapper::BackendHandle>> & S3ClientWrapper::backends()
+std::shared_ptr<S3ClientWrapper::BackendHandle> S3ClientWrapper::manage_backend_handle(const Params & params, ManageBackendHandleOp op)
 {
-    static std::map<PluginID, std::shared_ptr<BackendHandle>> handles;
-    return handles;
-}
+    std::unique_lock<std::mutex> lock(_backend_handle_mutex);
+    LOG(SPAM) << "Managing backend handle " << (op == ManageBackendHandleOp::CREATE ? "CREATE" : "DESTROY");
 
-std::shared_ptr<S3ClientWrapper::BackendHandle> S3ClientWrapper::open_backend(const Params & params)
-{
-    std::lock_guard<std::mutex> lock(_backend_handle_mutex);
-    auto & handles = backends();
-    auto id = BackendHandle::get_libstreamers_plugin_type(params.uri).id();
-    auto it = handles.find(id);
-    if (it != handles.end()) return it->second;
-    return handles.emplace(id, std::make_shared<BackendHandle>(params)).first->second;
+    static auto __backend_handle = std::make_shared<BackendHandle>(params);
+    if (__backend_handle == nullptr && op == ManageBackendHandleOp::CREATE)
+    {
+        LOG(DEBUG) << "Backend handle is not initialized";
+        __backend_handle = std::make_shared<BackendHandle>(params);
+    }
+
+    if (op == ManageBackendHandleOp::DESTROY && __backend_handle != nullptr)
+    {
+        const auto shutdown_policy = get_backend_shutdown_policy(__backend_handle);
+        if (shutdown_policy == common::backend_api::ObjectShutdownPolicy_t::OBJECT_SHUTDOWN_POLICY_ON_STREAMER_SHUTDOWN)
+        {
+            LOG(DEBUG) << "Destroying backend handle on streamer shutdown";
+            ASSERT(__backend_handle != nullptr) << "Backend handle is not initialized";
+            __backend_handle = nullptr;
+        }
+        else if (shutdown_policy == common::backend_api::ObjectShutdownPolicy_t::OBJECT_SHUTDOWN_POLICY_ON_PROCESS_EXIT)
+        {
+            LOG(DEBUG) << "Object storage backend will be closed on process exit";
+        }
+        else
+        {
+            LOG(ERROR) << "Unknown object storage backend shutdown policy";
+        }
+    }
+    return __backend_handle;
 }
 
 void * S3ClientWrapper::create_client(const Params & params)
@@ -338,6 +353,12 @@ void S3ClientWrapper::free_file_list(
     unsigned num_entries)
 {
     _backend_handle->api.free_file_list(entries, num_entries);
+}
+
+common::backend_api::ObjectShutdownPolicy_t S3ClientWrapper::get_backend_shutdown_policy(std::shared_ptr<S3ClientWrapper::BackendHandle> handle)
+{
+    ASSERT(handle != nullptr) << "object storage backend handle is not initialized";
+    return handle->api.get_backend_shutdown_policy();
 }
 
 }; // namespace runai::llm::streamer::common::s3
