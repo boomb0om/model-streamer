@@ -7,6 +7,7 @@
 
 #include <charconv>
 #include <cstring>
+#include <memory>
 #include <string_view>
 #include <strings.h>
 
@@ -58,7 +59,7 @@ struct Transfer
     long status = 0;
     bool valid_range = false;
     bool headers_done = false;
-    bool oversized = false;
+    bool invalid_length = false;
 };
 
 size_t header(char * data, size_t, size_t bytes, void * context)
@@ -95,6 +96,15 @@ size_t header(char * data, size_t, size_t bytes, void * context)
                     return 0;
                 t.valid_range = true;
             }
+            if (equal_ci(field, "Content-Length"))
+            {
+                size_t length;
+                if (!take_number(line, length) || !line.empty() || length != t.range.length)
+                {
+                    t.invalid_length = true;
+                    return 0;
+                }
+            }
             if (equal_ci(field, "Content-Encoding") && !equal_ci(line, "identity")) return 0;
         }
     }
@@ -107,7 +117,7 @@ size_t body(char * data, size_t, size_t bytes, void * context)
     if (t.stopped || t.status != 206 || !t.headers_done || !t.valid_range) return 0;
     if (bytes > t.range.length - t.written)
     {
-        t.oversized = true;
+        t.invalid_length = true;
         return 0;
     }
     std::memcpy(t.buffer + t.written, data, bytes);
@@ -155,12 +165,15 @@ common::ResponseCode range_get(CURL * curl, const std::string & url, common::bac
     if (range.length == 0) return ResponseCode::Success;
     if (!curl) return ResponseCode::UnknownError;
     const std::string bounds = std::to_string(range.offset) + "-" + std::to_string(range.offset + (range.length - 1));
+    std::unique_ptr<curl_slist, decltype(&curl_slist_free_all)> headers(
+        curl_slist_append(nullptr, "Accept-Encoding: identity"), curl_slist_free_all);
+    if (!headers) return ResponseCode::UnknownError;
     Transfer transfer{range, buffer, written, stopped};
     // Clear request options and callback pointers before their context goes away. The connection cache survives.
     utils::ScopeGuard reset([curl] { curl_easy_reset(curl); });
 
     const auto set = [&](CURLoption option, auto value) { return curl_easy_setopt(curl, option, value) == CURLE_OK; };
-    if (!set(CURLOPT_URL, url.c_str()) || !set(CURLOPT_RANGE, bounds.c_str()) ||
+    if (!set(CURLOPT_URL, url.c_str()) || !set(CURLOPT_RANGE, bounds.c_str()) || !set(CURLOPT_HTTPHEADER, headers.get()) ||
         !set(CURLOPT_PATH_AS_IS, 1L) ||
         !set(CURLOPT_PROTOCOLS, long(CURLPROTO_HTTP | CURLPROTO_HTTPS)) ||
         !set(CURLOPT_DISALLOW_USERNAME_IN_URL, 1L) || !set(CURLOPT_SUPPRESS_CONNECT_HEADERS, 1L) ||
@@ -178,8 +191,13 @@ common::ResponseCode range_get(CURL * curl, const std::string & url, common::bac
         return ResponseCode::Success;
     LOG(ERROR) << "HTTP range GET failed (status " << transfer.status << ", " << curl_easy_strerror(result)
                << ", wrote " << written << " of " << range.length << " bytes)";
-    if (transfer.valid_range && (transfer.oversized || result == CURLE_PARTIAL_FILE || result == CURLE_OK))
+    if (transfer.invalid_length || (transfer.valid_range && result == CURLE_OK))
         return ResponseCode::FileTruncatedError;
+    if (transfer.valid_range && result == CURLE_PARTIAL_FILE)
+    {
+        // The declared range is correct, but the connection ended before it delivered the body.
+        return !stopped && written < range.length ? ResponseCode::RetryableFileAccessError : ResponseCode::FileTruncatedError;
+    }
     if (!stopped && (transfer.status == 200 || (transfer.status == 206 && result == CURLE_WRITE_ERROR)))
         return ResponseCode::HTTPInvalidRangeResponse;
     if (!stopped && result != CURLE_ABORTED_BY_CALLBACK && retryable(result, transfer.status))

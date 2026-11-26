@@ -44,6 +44,9 @@ def serve(files, *, mode="ok"):
             if mode == "retry_once" and len(requests) == 1:
                 self.send_error(503)
                 return
+            if mode == "identity" and self.headers.get("Accept-Encoding") != "identity":
+                self.send_error(406)
+                return
             if mode == "redirect" and self.path == "/redirect":
                 self.send_response(307)
                 self.send_header("Location", "/model")
@@ -72,6 +75,9 @@ def serve(files, *, mode="ok"):
                 payload += b"x"
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
+            if mode == "disconnect_once" and len(requests) == 1:
+                self.close_connection = True
+                payload = payload[:2]
             self.wfile.write(payload)
 
         def do_HEAD(self):
@@ -137,6 +143,14 @@ def test_explicit_shards(tmp_path):
     assert_ranges([r for r in received if r[1] == "/b"], "/b", second)
 
 
+def test_requests_identity_encoding(tmp_path):
+    data = model(tmp_path / "model", "x", 1)
+    with serve({SIGNED_PATH: data}, mode="identity") as (base, requests):
+        result = read_one(base + SIGNED_PATH, "x")
+    torch.testing.assert_close(result["x"], torch.tensor([[1, 2]], dtype=torch.int32))
+    assert_ranges(requests, SIGNED_PATH, data)
+
+
 def test_redirect_is_not_followed(tmp_path):
     data = model(tmp_path / "model", "x", 1)
     with serve({"/redirect": data, "/model": data}, mode="redirect") as (base, requests):
@@ -147,7 +161,8 @@ def test_redirect_is_not_followed(tmp_path):
 
 
 @pytest.mark.parametrize("mode", [200, "missing", "bounds", "short", "long", 401, 403, 416])
-def test_failed_range_is_reported(tmp_path, mode):
+def test_failed_range_is_reported(tmp_path, monkeypatch, mode):
+    monkeypatch.setenv("RUNAI_STREAMER_S3_TIMEOUT", "5")
     data = model(tmp_path / "model", "x", 1)
     with serve({SIGNED_PATH: data}, mode=mode) as (base, requests):
         with pytest.raises(ValueError) as error:
@@ -155,6 +170,8 @@ def test_failed_range_is_reported(tmp_path, mode):
     assert requests == [("GET", SIGNED_PATH, "bytes=0-7")]
     if mode in (200, "missing", "bounds"):
         assert "expected 206" in str(error.value)
+    if mode in ("short", "long"):
+        assert "unexpected number of bytes" in str(error.value)
 
 
 def test_failed_tensor_read_surfaces_in_get_tensors(tmp_path):
@@ -171,6 +188,16 @@ def test_retries_transient_range_with_application_budget(tmp_path, monkeypatch):
     monkeypatch.setenv("RUNAI_STREAMER_S3_TIMEOUT", "5")
     data = model(tmp_path / "model", "x", 1)
     with serve({SIGNED_PATH: data}, mode="retry_once") as (base, requests):
+        result = read_one(base + SIGNED_PATH, "x")
+    torch.testing.assert_close(result["x"], torch.tensor([[1, 2]], dtype=torch.int32))
+    assert requests[:2] == [("GET", SIGNED_PATH, "bytes=0-7")] * 2
+    assert_ranges(requests[1:], SIGNED_PATH, data)
+
+
+def test_retries_range_after_premature_eof(tmp_path, monkeypatch):
+    monkeypatch.setenv("RUNAI_STREAMER_S3_TIMEOUT", "5")
+    data = model(tmp_path / "model", "x", 1)
+    with serve({SIGNED_PATH: data}, mode="disconnect_once") as (base, requests):
         result = read_one(base + SIGNED_PATH, "x")
     torch.testing.assert_close(result["x"], torch.tensor([[1, 2]], dtype=torch.int32))
     assert requests[:2] == [("GET", SIGNED_PATH, "bytes=0-7")] * 2
