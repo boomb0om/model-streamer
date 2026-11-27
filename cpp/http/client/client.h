@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 boomb0om
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -7,6 +8,7 @@
 
 #include <condition_variable>
 #include <list>
+#include <string>
 
 #include <curl/curl.h>
 
@@ -49,6 +51,7 @@ class Client : public common::IClient
     const unsigned _threads;
     const size_t _chunk_bytesize;
     const size_t _max_inflight_bytes;
+    const std::string _ca_bundle;
     std::atomic<bool> _stopped{false};
     std::mutex _mutex;
     std::condition_variable _changed;

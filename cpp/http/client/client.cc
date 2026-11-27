@@ -1,5 +1,6 @@
 /*
  * SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026 boomb0om
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -11,12 +12,15 @@
 #include <memory>
 
 #include "http/client/range_get.h"
+#include "utils/env/env.h"
 
 namespace runai::llm::streamer::impl::http
 {
 
 namespace
 {
+
+constexpr char ca_bundle_env[] = "RUNAI_STREAMER_HTTP_CA_BUNDLE";
 
 size_t inflight_window(unsigned threads, size_t chunk_bytesize)
 {
@@ -51,6 +55,7 @@ Client::Client(const api::ObjectClientConfig_t & config) :
     _threads(std::max(1U, std::max(8U, std::thread::hardware_concurrency()) / std::max(1U, _readers))),
     _chunk_bytesize(std::max(size_t{1}, config.default_storage_chunk_size)),
     _max_inflight_bytes(inflight_window(_threads, _chunk_bytesize)),
+    _ca_bundle(utils::getenv<std::string>(ca_bundle_env, "")),
     _pool([this] { return std::make_unique<Worker>(*this); }, _threads)
 {}
 
@@ -62,7 +67,8 @@ Client::~Client()
 bool Client::verify_credentials(const api::ObjectClientConfig_t & config) const
 {
     return !_stopped && config.concurrent_readers == _readers &&
-           std::max(size_t{1}, config.default_storage_chunk_size) == _chunk_bytesize;
+           std::max(size_t{1}, config.default_storage_chunk_size) == _chunk_bytesize &&
+           utils::getenv<std::string>(ca_bundle_env, "") == _ca_bundle;
 }
 
 ResponseCode Client::read(const char * url, api::ObjectRange_t range, char * buffer, api::ObjectRequestId_t id)
@@ -97,7 +103,7 @@ void Client::perform(CURL * curl, Request && request)
         if (!_stopped)
         {
             event.response_code = range_get(curl, request.url, request.range, request.buffer,
-                                            event.bytes_transferred, _stopped);
+                                            event.bytes_transferred, _stopped, _ca_bundle);
         }
     }
     catch (const std::exception &)

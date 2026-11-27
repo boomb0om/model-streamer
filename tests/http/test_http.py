@@ -1,9 +1,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2026 boomb0om
 # SPDX-License-Identifier: Apache-2.0
 
 import json
 import re
+import ssl
 import struct
+import subprocess
 import threading
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -31,7 +34,7 @@ def model(path: Path, selected: str, value: int) -> bytes:
 
 
 @contextmanager
-def serve(files, *, mode="ok"):
+def serve(files, *, mode="ok", tls_context=None):
     requests = []
 
     class Handler(BaseHTTPRequestHandler):
@@ -88,10 +91,13 @@ def serve(files, *, mode="ok"):
             pass
 
     with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+        if tls_context is not None:
+            server.socket = tls_context.wrap_socket(server.socket, server_side=True)
         worker = threading.Thread(target=server.serve_forever)
         worker.start()
         try:
-            yield f"http://127.0.0.1:{server.server_port}", requests
+            scheme = "https" if tls_context is not None else "http"
+            yield f"{scheme}://127.0.0.1:{server.server_port}", requests
         finally:
             server.shutdown()
             worker.join()
@@ -125,6 +131,52 @@ def test_selected_tensor_and_signed_request_target(tmp_path):
         result = read_one(base + SIGNED_PATH, "selected")
     assert result.keys() == reference.keys() == {"selected"}
     torch.testing.assert_close(result["selected"], reference["selected"], rtol=0, atol=0)
+    assert_ranges(requests, SIGNED_PATH, data)
+
+
+def test_https_custom_ca_bundle(tmp_path, monkeypatch, capfd):
+    cert = tmp_path / "cert.pem"
+    key = tmp_path / "key.pem"
+    subprocess.run(
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+         "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost",
+         "-addext", "basicConstraints=critical,CA:TRUE",
+         "-keyout", str(key), "-out", str(cert)],
+        check=True, capture_output=True,
+    )
+    tls_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    tls_context.load_cert_chain(cert, key)
+    data = model(tmp_path / "model.safetensors", "selected", 20)
+    ca_bundle_env = "RUNAI_STREAMER_HTTP_CA_BUNDLE"
+    monkeypatch.delenv(ca_bundle_env, raising=False)
+    monkeypatch.setenv("RUNAI_STREAMER_LOG_TO_STDERR", "1")
+
+    with serve({SIGNED_PATH: data}, tls_context=tls_context) as (base, requests):
+        localhost = base.replace("127.0.0.1", "localhost") + SIGNED_PATH
+        with pytest.raises(ValueError, match="File access error"):
+            read_one(localhost, "selected")
+
+        invalid_pem = tmp_path / "invalid.pem"
+        invalid_pem.write_text("invalid certificate\n")
+        for bad_bundle in (tmp_path / "missing.pem", invalid_pem):
+            monkeypatch.setenv(ca_bundle_env, str(bad_bundle))
+            with pytest.raises(ValueError, match="CA bundle file not found"):
+                read_one(localhost, "selected")
+            assert f"Failed to load HTTPS CA bundle {bad_bundle}" in capfd.readouterr().err
+
+        monkeypatch.setenv(ca_bundle_env, str(cert))
+        with pytest.raises(ValueError, match="File access error"):
+            read_one(base + SIGNED_PATH, "selected")  # The certificate only names localhost.
+        assert requests == []
+        result = read_one(localhost, "selected")
+
+        request_count = len(requests)
+        monkeypatch.setenv(ca_bundle_env, "")
+        with pytest.raises(ValueError, match="File access error"):
+            read_one(localhost, "selected")
+        assert len(requests) == request_count
+
+    torch.testing.assert_close(result["selected"], torch.tensor([[20, 21]], dtype=torch.int32))
     assert_ranges(requests, SIGNED_PATH, data)
 
 
