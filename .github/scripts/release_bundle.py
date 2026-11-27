@@ -15,10 +15,10 @@ import tarfile
 
 
 COMPONENTS = {"streamer": "libstreamer.so", "s3": "libstreamers3.so",
-              "gcs": "libstreamergcs.so", "azure": "libstreamerazure.so"}
+              "gcs": "libstreamergcs.so", "azure": "libstreamerazure.so", "http": "libstreamerhttp.so"}
 ARCHITECTURES = {"x86_64": 62, "aarch64": 183}  # ELF e_machine values
 HEADERS = {"streamer.h", "device.h", "response_code.h", "submission_id.h"}
-# The third-party notice of the four libraries in the SDK: cpp/NOTICE, kept current by the
+# The third-party notice of the libraries in the SDK: cpp/NOTICE, kept current by the
 # run-ai/repo-housekeeper Renovate pipeline, packed into each SDK archive under this name.
 NOTICE_NAME = "THIRD_PARTY_NOTICES.txt"
 # Files every corresponding-source archive must contain (built by release_sources.py).
@@ -172,9 +172,9 @@ def verify_bundle(bundle, version):
     assets[source_name] = bundle / "sources" / source_name
     expected = {path.relative_to(bundle).as_posix() for path in assets.values()} | {"SHA256SUMS"}
     require(set(files) == expected,
-            "Release bundle must contain exactly eight wheels, two SDKs, a source archive, and SHA256SUMS")
+            "Release bundle must contain exactly ten wheels, two SDKs, a source archive, and SHA256SUMS")
     lines = files["SHA256SUMS"].read_text(encoding="utf-8").splitlines()
-    require(len(lines) == len(assets), "Checksum manifest must contain all eleven assets exactly once")
+    require(len(lines) == len(assets), "Checksum manifest must contain all thirteen assets exactly once")
     seen = set()
     for line in lines:
         match = re.fullmatch(r"([0-9a-f]{64})  ([^/\\]+)", line)

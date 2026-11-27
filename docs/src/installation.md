@@ -36,6 +36,16 @@ pip install 'runai-model-streamer[azure]'
 
 > **Warning:** Make sure you install the Azure dependency in the same version of your runai-model-streamer by running `pip install 'runai-model-streamer[azure]==0.3.1'`. 
 
+### HTTP and HTTPS
+
+To stream a safetensors file over HTTP or HTTPS, install the matching native plugin with the HTTP extra.
+
+```bash
+pip install 'runai-model-streamer[http]'
+```
+
+The server must support byte-range GET requests. See [Streaming over HTTP and HTTPS](usage.md#streaming-over-http-and-https) for a selected-tensor example and authentication limits.
+
 ### Matching versions
 
 The object storage packages ship a shared library that `runai-model-streamer` loads at runtime. They

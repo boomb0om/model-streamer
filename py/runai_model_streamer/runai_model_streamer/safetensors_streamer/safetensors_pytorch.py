@@ -8,7 +8,7 @@ import struct
 import json
 from typing import List, Tuple, Optional, Any
 from runai_model_streamer.distributed_streamer.distributed_streamer import (DistributedStreamer, FileChunks)
-from runai_model_streamer.s3_utils.s3_utils import S3Credentials, is_s3_path, is_gs_path, is_azure_path
+from runai_model_streamer.s3_utils.s3_utils import S3Credentials, is_s3_path, is_gs_path, is_azure_path, is_http_path
 
 SAFETENSORS_DATA_OFFSETS_KEY = "data_offsets"
 SAFETENSORS_NAME_KEY = "name"
@@ -92,7 +92,7 @@ def element_size_of(torch_dtype: torch.dtype) -> int:
 def _get_actual_file_size(path: str) -> Optional[int]:
     """Physical size of path, local filesystem only. Object storage not checked - costs extra
     requests on the hot loading path either way; see issue #197 for the zero-cost fix."""
-    if is_s3_path(path) or is_gs_path(path) or is_azure_path(path):
+    if is_s3_path(path) or is_gs_path(path) or is_azure_path(path) or is_http_path(path):
         return None
     return os.path.getsize(path)
 

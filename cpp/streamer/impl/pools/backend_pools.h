@@ -52,7 +52,7 @@ class BackendPools
     // Strategy is NOT this. It stays the configured preference and the per-file result;
     // io_uring_* and libaio_* select FileSystemAsync, sync_buffered selects FileSystem.
     enum class Pool { FileSystem, FileSystemAsync, ObjectStorage };
-    enum class Plugin { S3, GCS, Azure };
+    enum class Plugin { S3, GCS, Azure, HTTP };
     using Handler = utils::ThreadPool<Workload>::Handler;
     using WorkerFactory = utils::ThreadPool<Workload>::WorkerFactory;
 

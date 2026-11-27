@@ -284,6 +284,16 @@ If defined, this environment variable overrides the value for the profile settin
 
 String
 
+### RUNAI_STREAMER_HTTP_CA_BUNDLE
+
+Path to a PEM file containing the trusted CA certificates for direct HTTPS URLs.
+Set it before starting the application. libcurl still verifies the certificate
+chain and server hostname.
+
+#### Default value
+
+If unset or empty, libcurl uses its built-in CA file and directory settings.
+
 ### RUNAI_STREAMER_S3_USE_VIRTUAL_ADDRESSING
 
 Controls parsing the url endpoint for reading from object store 
@@ -386,6 +396,10 @@ immediately as `FileAccessError`.
 Set this variable to `0`, or leave it unset, to disable application-level
 retries. In that mode, the original `FileAccessError` is returned after the AWS
 CRT retry policy finishes.
+
+HTTP and HTTPS reads use the same retry window for temporary network failures
+and HTTP 408, 429, 500, 502, 503, and 504 responses. Each HTTP attempt allows
+10 seconds to connect and aborts after 30 seconds below 1 byte per second.
 
 #### Values accepted
 

@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+ARCH := $(shell uname -m)
+PLATFORM := manylinux_2_28_${ARCH}
+PACKAGE_VERSION ?= 0.0.0
+
+.PHONY: build clean install install-extra
+
+build:
+	python3 setup.py bdist_wheel --plat-name ${PLATFORM}
+
+clean:
+	rm -rf build/ dist/ runai_model_streamer_http.egg-info/
+
+install:
+	pip3 uninstall -y runai_model_streamer_http && \
+	pip3 install dist/runai_model_streamer_http-${PACKAGE_VERSION}-py3-none-${PLATFORM}.whl
+
+install-extra:
+	python3 -m pip install --no-index --find-links=../runai_model_streamer/dist --find-links=./dist \
+		'runai-model-streamer[http]==$(PACKAGE_VERSION)'

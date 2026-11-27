@@ -34,7 +34,8 @@ static const std::string obj_plugin_azure_name = "azure";
 enum struct PluginID {
     GCS,
     S3,
-    AZURE
+    AZURE,
+    HTTP
 };
 
 /**
@@ -53,6 +54,7 @@ public:
     static const ObjectPluginType ObjStorageGCS;
     static const ObjectPluginType ObjStorageS3;
     static const ObjectPluginType ObjStorageAzure;
+    static const ObjectPluginType ObjStorageHTTP;
 
     std::string name() const { return _name; }
     std::string so_name() const { return _so_name; }

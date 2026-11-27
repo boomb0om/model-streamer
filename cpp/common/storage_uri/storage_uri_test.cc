@@ -21,6 +21,19 @@ TEST(Uri, Empty)
     EXPECT_THROW(uri = std::make_unique<StorageUri>(""), std::exception);
 }
 
+TEST(Uri, HttpPreservesOriginalUrl)
+{
+    for (const std::string scheme : {"http", "https"})
+    {
+        const auto url = scheme + "://host:8080/a%2Fb?sig=secret&x=1";
+        StorageUri uri(url);
+        EXPECT_TRUE(uri.is_http());
+        EXPECT_EQ(uri.uri, url);
+        EXPECT_EQ(uri.bucket, "host:8080");
+        EXPECT_EQ(uri.path, "a%2Fb");
+    }
+}
+
 TEST(Uri, Valid_S3_Path)
 {
     auto bucket = utils::random::string();

@@ -38,6 +38,8 @@ transfers tensors to the selected CUDA or XPU device, as shown below, and uses t
   Azure Blob Storage. Object storage requires the matching storage package; see
   [installation](docs/src/installation.md) for S3 and Azure, and
   [GCS setup](docs/src/usage.md#streaming-from-google-cloud-storage) for Google Cloud Storage.
+- Read selected tensor ranges from public or pre-signed HTTP(S) file URLs with the
+  [HTTP plugin](docs/src/usage.md#streaming-over-http-and-https).
 - Select tensors by name and use distributed streaming for multi-process loading;
   see [usage and requirements](docs/src/usage.md).
 - Control read concurrency and memory limits with the documented
@@ -53,6 +55,7 @@ below, the application copies each tensor to the selected CUDA or XPU device whi
 | --- | --- |
 | [`cpp/streamer`](cpp/streamer) | C++ streaming engine and concurrent reads |
 | [`cpp/s3`](cpp/s3), [`cpp/gcs`](cpp/gcs), [`cpp/azure`](cpp/azure) | Object storage backend clients |
+| [`cpp/http`](cpp/http) | HTTP and HTTPS byte-range backend |
 | [`cpp/streamer/api/streamer`](cpp/streamer/api/streamer) | C API used by the Python wrapper through `ctypes` |
 | [`py/runai_model_streamer`](py/runai_model_streamer) | Python SDK and SafeTensors-to-PyTorch interface |
 
@@ -190,7 +193,7 @@ git push origin refs/tags/0.17.2
 
 The tag push triggers **RunAI Model Streamer Library - Release**. It validates
 the tag, selects `devcontainer:release-0.17`, and resolves that image to a digest
-shared by all jobs. CI builds all four packages for x86_64 and aarch64 and runs
+shared by all jobs. CI builds all five packages for x86_64 and aarch64 and runs
 the existing x86_64 C++, Python, integration, and filesystem-strategy tests.
 There is no fallback to master's devcontainer. Ensure the branch image matches
 the tagged source's build requirements, especially when tagging an older commit.
@@ -199,16 +202,16 @@ After every build and test succeeds, CI calls the reusable `assemble-bundle.yml`
 workflow, also used for PR bundles. It collects one wheel for each package and
 architecture at the tagged version, plus the C++ component artifacts from the
 same run. It packages one C++ SDK per architecture, checking the ELF architecture
-and matching public headers and licenses across all components. The eight wheels,
-two SDK archives, and combined `SHA256SUMS` are saved in a workflow artifact
-retained for 30 days. Review the version, commit, image digest, and checksums in
+and matching public headers and licenses across all components. The ten wheels,
+two SDK archives, corresponding-source archive, and combined `SHA256SUMS` are
+saved in a workflow artifact retained for 30 days. Review the version, commit, image digest, and checksums in
 the job summaries, then approve the **pypi** deployment in the Actions run.
 Rejection prevents publication.
 
-After approval, CI checks that the saved bundle contains all ten assets and that
+After approval, CI checks that the saved bundle contains all thirteen assets and that
 every checksum matches. It publishes those exact wheels to the existing PyPI
-projects and attaches the same eight wheels, both C++ SDK archives, and
-`SHA256SUMS` to the GitHub release. Publication does not rebuild anything.
+projects and attaches the same ten wheels, both C++ SDK archives, the source
+archive, and `SHA256SUMS` to the GitHub release. Publication does not rebuild anything.
 The existing publishing actions handle the uploads:
 `pypa/gh-action-pypi-publish` for PyPI and `softprops/action-gh-release` for GitHub.
 A GitHub release is created if needed. Existing release notes are preserved.
@@ -232,6 +235,7 @@ lib/libstreamer.so
 lib/libstreamers3.so
 lib/libstreamergcs.so
 lib/libstreamerazure.so
+lib/libstreamerhttp.so
 LICENSE
 THIRD_PARTY_NOTICES.txt    Licenses of the third-party code linked into the libraries
 ```
@@ -239,7 +243,8 @@ THIRD_PARTY_NOTICES.txt    Licenses of the third-party code linked into the libr
 The archives contain the original build outputs without rebuilding or modifying
 the library and header bytes. They use normalized ordering, permissions,
 ownership, and timestamps. Wheels remain under `wheels/` in the saved workflow
-bundle; SDK archives are under `cpp/`. Only the wheels are sent to PyPI.
+bundle, SDK archives under `cpp/`, and the source archive under `sources/`.
+Only the wheels are sent to PyPI.
 
 GitHub release assets and `SHA256SUMS` use plain filenames. Download all assets
 and the checksum file into one directory and run `sha256sum --check SHA256SUMS`.

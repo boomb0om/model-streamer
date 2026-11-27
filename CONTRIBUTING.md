@@ -242,7 +242,7 @@ Each pull request should meet the following requirements:
 
 ### Linux wheel compatibility
 
-All four packages target `manylinux_2_28` on x86_64 and aarch64. The Ubuntu
+All five packages target `manylinux_2_28` on x86_64 and aarch64. The Ubuntu
 build image is newer than that runtime baseline: the semaphore resolves
 `sem_clockwait` at runtime and uses `sem_timedwait` when unavailable, while
 the portable linker rules select older compatible libm symbols for SDK calls.
@@ -307,8 +307,8 @@ are unchanged.
 ### Parallel PR checks
 
 A setup job computes `PACKAGE_VERSION` once. Separate `build_x86` and `build_arm`
-jobs in `on-pr.yaml` each call `build.yml` for four components: core (`streamer`),
-S3, GCS, and Azure. They pass `x86_64` and `aarch64`, respectively, for eight builds
+jobs in `on-pr.yaml` each call `build.yml` for five components: core (`streamer`),
+S3, GCS, Azure, and HTTP. They pass `x86_64` and `aarch64`, respectively, for ten builds
 in total. The reusable workflow handles one architecture/component pair,
 accepting the package version, selected image tag, and optional image artifact.
 It contains no matrix, so other workflows can call a single build or define their
@@ -321,8 +321,8 @@ Each native job then runs
 command uses the same architecture and backend defines as the preceding build,
 allowing Bazel to reuse compatible compiled outputs on that runner.
 
-S3, GCS, and Azure run their respective C++ test trees; core runs everything
-outside those three trees, including common, POSIX I/O, and utility tests.
+S3, GCS, Azure, and HTTP run their respective C++ test trees; core runs everything
+outside those four trees, including common, POSIX I/O, and utility tests.
 The core job on each architecture also runs `make ci-test-python`, installing only
 its core wheel and Python test dependencies before running unit and distributed
 tests. Python feedback therefore does not wait for the cloud backend builds.
@@ -330,8 +330,8 @@ tests. Python feedback therefore does not wait for the cloud backend builds.
 After both component build matrices succeed, two integration jobs download their
 matching wheels and run `make ci-test-integration` on native AMD64 and ARM64
 runners: integration suites followed by the filesystem strategy sweep. Each uses
-`make ci-install` to install all four wheels via the existing Python package
-Makefiles. Python distributed tests load the installed real library; the mock
+`make ci-install` to install all five wheels via their package Makefiles.
+Python distributed tests load the installed real library; the mock
 unit tests retain their existing override. Each integration job also reuses the
 installed core library for the Python filesystem strategy
 tests through `test-unit-real-installed`, avoiding another full native build.
@@ -339,12 +339,12 @@ The same tests still run for all four strategies. Each integration job still bui
 the two C++ strategy test targets and the Azure testing variant. `make test` remains
 the full sequential local entry point and builds from source as before.
 
-The build jobs upload eight intermediate `ci-packages-<component>-<arch>`
+The build jobs upload ten intermediate `ci-packages-<component>-<arch>`
 artifacts, retained for seven days for use by later CI jobs. The **Assemble packages**
 job runs alongside integration tests after both architectures finish building.
 It calls the reusable `assemble-bundle.yml` workflow to create one final download,
 `release-bundle-pr-<run>-<attempt>`, with the same layout as the release bundle:
-eight wheels under `wheels/`, two complete C++ SDK
+ten wheels under `wheels/`, two complete C++ SDK
 archives under `cpp/`, and `SHA256SUMS`. SDK archives contain the libraries,
 public headers, license, and third-party notices. The bundler checks completeness,
 ELF architectures, matching headers/licenses, and checksums before upload.
@@ -370,7 +370,7 @@ All C++ artifacts include public C/C++ headers under
 alongside the core library for the same architecture. Libraries are copied out
 of the container before it stops so the downloads contain real files rather
 than Bazel symlinks. The `Test, Build & Push` required check succeeds
-only when all eight builds (including their C++ and Python tests), integration
+only when all ten builds (including their C++ and Python tests), integration
 tests on both architectures, package assembly, and any triggered image builds
 succeed. Each architecture's component jobs can start as soon as its own image is
 ready, without waiting for the other image builder.

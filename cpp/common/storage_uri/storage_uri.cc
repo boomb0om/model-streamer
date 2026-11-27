@@ -6,6 +6,7 @@
  */
 
 #include <regex>
+#include <string_view>
 #include <vector>
 
 #include "common/storage_uri/storage_uri.h"
@@ -20,6 +21,18 @@ static const std::string azureProtocol("az");
 
 StorageUri::StorageUri(const std::string & uri) : uri(uri)
 {
+    const std::string_view url(uri);
+    if (url.substr(0, 7) == "http://" || url.substr(0, 8) == "https://")
+    {
+        // Parse the authority and path. Keep the full URL in uri for libcurl.
+        const auto address = url.substr(0, url.find_first_of("?#"));
+        const auto colon = address.find(':');
+        const auto slash = address.find('/', colon + 3);
+        scheme = address.substr(0, colon);
+        bucket = address.substr(colon + 3, slash - (colon + 3));
+        if (slash != address.npos) path = address.substr(slash + 1);
+        return;
+    }
     static const std::regex awsRegex("^(s3|gs|az)://([^/]+)/(.+)$");
 
     std::smatch match;
@@ -42,6 +55,11 @@ StorageUri::StorageUri(const std::string & uri) : uri(uri)
 std::ostream & operator<<(std::ostream & os, const StorageUri & uri)
 {
     return os << "scheme: " << uri.scheme << " bucket: " << uri.bucket << " path: " << uri.path;
+}
+
+bool StorageUri::is_http() const
+{
+    return scheme == "http" || scheme == "https";
 }
 
 bool StorageUri::is_gcs() const

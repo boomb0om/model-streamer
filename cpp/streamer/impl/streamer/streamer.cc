@@ -625,6 +625,7 @@ common::ResponseCode Streamer::lock_object_plugin(const std::vector<FileRanges> 
         }
 
         const auto plugin = uri->is_gcs()   ? BackendPools::Plugin::GCS
+                          : uri->is_http()  ? BackendPools::Plugin::HTTP
                           : uri->is_azure() ? BackendPools::Plugin::Azure
                           :                   BackendPools::Plugin::S3;
 

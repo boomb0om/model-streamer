@@ -56,7 +56,7 @@ class ReleaseBundleTests(unittest.TestCase):
         self.bundle = self.root / "release-bundle"
         self.paths = []
         for package in ("runai_model_streamer", "runai_model_streamer_s3",
-                        "runai_model_streamer_gcs", "runai_model_streamer_azure"):
+                        "runai_model_streamer_gcs", "runai_model_streamer_azure", "runai_model_streamer_http"):
             directory = self.root / "packages" / package / "dist"
             directory.mkdir(parents=True)
             for arch in ("x86_64", "aarch64"):
@@ -67,10 +67,10 @@ class ReleaseBundleTests(unittest.TestCase):
         self.notices.parent.mkdir()
         self.notices.write_text("fixture third-party notices\n")
         self.cpp = self.root / "cpp-artifacts"
-        self.libraries = []
         for arch, machine in (("x86_64", 62), ("aarch64", 183)):
             for component, library in (("streamer", "libstreamer.so"), ("s3", "libstreamers3.so"),
-                                       ("gcs", "libstreamergcs.so"), ("azure", "libstreamerazure.so")):
+                                       ("gcs", "libstreamergcs.so"), ("azure", "libstreamerazure.so"),
+                                       ("http", "libstreamerhttp.so")):
                 directory = self.cpp / f"ci-cpp-{component}-{arch}"
                 (directory / "include" / "streamer").mkdir(parents=True)
                 (directory / "lib").mkdir()
@@ -83,7 +83,6 @@ class ReleaseBundleTests(unittest.TestCase):
                 struct.pack_into("<HH", elf, 16, 3, machine)
                 path = directory / "lib" / library
                 path.write_bytes(elf + f"{component}-{arch}".encode())
-                self.libraries.append(path)
         self.sources = self.root / "source-archive"
         self.source_path = sources_archive(self.sources, VERSION)
 
@@ -109,10 +108,10 @@ class ReleaseBundleTests(unittest.TestCase):
 
     def test_complete_bundle_and_checksums(self):
         self.collect_ok()
-        self.assertEqual(len(list((self.bundle / "wheels").glob("*.whl"))), 8)
+        self.assertEqual(len(list((self.bundle / "wheels").glob("*.whl"))), 10)
         self.assertEqual(len(list((self.bundle / "cpp").glob("*.tar.gz"))), 2)
         self.assertEqual(len(list((self.bundle / "sources").glob("*.tar.gz"))), 1)
-        self.assertEqual(len((self.bundle / "SHA256SUMS").read_text().splitlines()), 11)
+        self.assertEqual(len((self.bundle / "SHA256SUMS").read_text().splitlines()), 13)
         verified = self.verify()
         self.assertEqual(verified.returncode, 0, verified.stderr)
         for path in self.paths:
@@ -223,6 +222,13 @@ class ReleaseBundleTests(unittest.TestCase):
         self.paths[0].rename(self.paths[0].with_suffix(".unavailable"))
         self.assertNotEqual(self.collect().returncode, 0)
 
+    def test_missing_http_wheel_rejected(self):
+        path = next(p for p in self.paths if p.name.startswith("runai_model_streamer_http-"))
+        path.unlink()
+        result = self.collect()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("runai_model_streamer_http", result.stderr)
+
     def test_wrong_version_rejected(self):
         path = self.paths[0]
         path.rename(path.with_name(path.name.replace(VERSION, "0.17.1")))
@@ -247,7 +253,8 @@ class ReleaseBundleTests(unittest.TestCase):
 
     def test_missing_library_rejected(self):
         """Reject packaging when a component artifact lacks its expected shared library."""
-        self.libraries[0].rename(self.libraries[0].with_suffix(".unavailable"))
+        path = self.cpp / "ci-cpp-streamer-x86_64" / "lib" / "libstreamer.so"
+        path.rename(path.with_suffix(".unavailable"))
         self.assertNotEqual(self.collect().returncode, 0)
 
     def test_missing_header_rejected(self):
@@ -374,15 +381,18 @@ class ReleaseBundleTests(unittest.TestCase):
                 self.assertIn("source directory", result.stderr)
 
     def test_wrong_architecture_rejected(self):
-        self.libraries[0].write_bytes(self.libraries[4].read_bytes())
+        source = self.cpp / "ci-cpp-streamer-aarch64" / "lib" / "libstreamer.so"
+        target = self.cpp / "ci-cpp-streamer-x86_64" / "lib" / "libstreamer.so"
+        target.write_bytes(source.read_bytes())
         self.assertNotEqual(self.collect().returncode, 0)
 
     def test_non_elf_library_rejected(self):
-        self.libraries[0].write_bytes(b"not an ELF shared library")
+        path = self.cpp / "ci-cpp-streamer-x86_64" / "lib" / "libstreamer.so"
+        path.write_bytes(b"not an ELF shared library")
         self.assertNotEqual(self.collect().returncode, 0)
 
     def test_symlink_library_rejected(self):
-        path = self.libraries[0]
+        path = self.cpp / "ci-cpp-streamer-x86_64" / "lib" / "libstreamer.so"
         real = path.with_suffix(".real")
         path.rename(real)
         path.symlink_to(real)

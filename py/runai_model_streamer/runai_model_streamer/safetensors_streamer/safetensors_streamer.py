@@ -23,6 +23,7 @@ from runai_model_streamer.distributed_streamer import DistributedStreamer
 import runai_model_streamer.safetensors_streamer.safetensors_pytorch as safetensors_pytorch
 
 from runai_model_streamer.s3_utils.s3_utils import (
+    is_http_path,
     S3Credentials,
     is_s3_path,
     is_gs_path,
@@ -44,6 +45,8 @@ def list_safetensors(path: str, s3_credentials : Optional[S3Credentials] = None)
     List all safetensors files in the given path.
     This function is not recursive.
     """
+    if is_http_path(path):
+        raise NotImplementedError("HTTP directory listing is unsupported. Supply explicit file URLs.")
     if is_s3_path(path):
         files = s3_glob(path, [SAFETENSORS_PATTERN], s3_credentials)
     elif is_gs_path(path):
@@ -64,6 +67,8 @@ def pull_files(model_path: str,
     Pull all safetensors files in the given path.
     This function is recursive.
     """
+    if is_http_path(model_path):
+        raise NotImplementedError("HTTP directory listing is unsupported. Supply explicit file URLs.")
     if is_s3_path(model_path):
         return s3_pull_files(model_path, dst, allow_pattern, ignore_pattern, s3_credentials)
     if is_gs_path(model_path):

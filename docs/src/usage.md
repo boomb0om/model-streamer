@@ -26,6 +26,28 @@ with SafetensorsStreamer() as streamer:
 
 > **Note:** Each yielded tensor belongs to you and stays valid after the streamer closes, so it does not need to be cloned - see [Tensor ownership](#tensor-ownership-owned). That is the default. With `owned=False`, or against a streamer older than this guarantee, a retained tensor is overwritten once the buffer it sits in is reused.
 
+#### Streaming over HTTP and HTTPS
+
+Pass a direct file URL to `stream_file` and select one or more tensors by name.
+
+```python
+from runai_model_streamer import SafetensorsStreamer
+
+url = "https://models.example.org/checkpoint/model.safetensors"
+with SafetensorsStreamer() as streamer:
+    streamer.stream_file(url, tensor_names={"model.layers.0.weight"})
+    for name, tensor in streamer.get_tensors():
+        print(name, tensor.dtype, tensor.shape)
+```
+
+For each file, the streamer requests bytes 0–7 for the header length, then the JSON header, then the byte ranges of the selected tensors. The server must return `206 Partial Content` with matching `Content-Range` bounds. A server that responds with the whole file causes the read to fail.
+
+For a sharded checkpoint, pass the explicit list of direct file URLs to `stream_files(urls, tensor_names={...})`. HTTP and HTTPS URLs can appear in the same list. Directory listing, shard discovery and repository-page URLs are unsupported.
+
+Use a direct public URL or supply a pre-signed GET URL with its original query string and with the `Range` header omitted from the signature. Logs and error messages can include the full URL, including the query string. libcurl verifies HTTPS certificates. Basic Auth, bearer tokens, custom request headers and redirects are unsupported.
+
+Set [`RUNAI_STREAMER_HTTP_CA_BUNDLE`](env-vars.md#runai_streamer_http_ca_bundle) to use a custom CA bundle for direct HTTPS URLs.
+
 #### Streaming from multiple files
 
 To stream tensors from multiple files in parallel use the `streamer.stream_files()` API:

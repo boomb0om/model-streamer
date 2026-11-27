@@ -21,6 +21,7 @@ struct StorageUri
     std::string bucket;
     std::string path;
 
+    bool is_http() const;
     bool is_gcs() const;
     bool is_azure() const;
 };
